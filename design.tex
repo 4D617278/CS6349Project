@@ -1,0 +1,181 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+
+\title{CS 6349 Design Document}
+\author{Brandon Luo, Neel Patel, Jerry Teng}
+\date{October 2022}
+
+\begin{document}
+
+\maketitle
+
+\setlength\parindent{0pt}
+
+\section{Cryptography}
+ The public key cryptosystem, hash function H, and nonce is implemented by the library (PyNaCl). We use elliptic curve Ed25519 for public key cryptography, SHA256 as the hash function, and HMAC as the keyed-hash function.
+ 
+\subsection{Definitions}
+
+\subsubsection{Negligible}
+
+A function n is negligible with respect to v if the product of n with any polynomial function is 0 as v approaches infinity. \\
+
+$\lim_{v \to \infty} n(v)f(v) = 0, \forall f(v) \in P$
+
+\subsubsection{Integrity}
+
+A function h is collision resistant if the probability of creating a collision is negligible with respect to the length of the key. \\
+
+$P[h(k, m) = h(k, m')] \le n(|k|)$
+
+\subsubsection{Freshness}
+
+A function m is fresh if it is unique at every time t. \\
+
+$m(t) = m(t') \Rightarrow t = t'$
+
+\subsubsection{Confidentiality}
+
+A function E is confidential if the probability of obtaining any of its inputs is negligible with respect to the length of the key. \\
+
+$P[E^{-1}(c) = k] \land P[E^{-1}(c) = m] \le n(|k|), \forall E^{-1} \in P$
+
+\subsection{Assumptions}
+SHA256 is collision resistant. HMAC is secure against forgeries. Ed25519 is confidential and fresh. \\
+
+The mapping from usernames to public keys on the list is valid assuming the initial mapping is valid.
+
+\section{Client to Server}
+
+\subsection{Assumptions}
+\begin{enumerate}
+\item
+The tuple (username, public key) of each client is known by the server.
+
+(The public keys and usernames are read from a file at the start of the server program) \\
+
+\item
+The public key and IP address of a server are known by all clients.
+
+(The public key and IP address of the server is read from a file at the start of the client program) \\
+
+\item
+Usernames are unique.
+
+(We reject new usernames that are in the set of current usernames)
+\end{enumerate}
+
+\subsection{Read List}
+A server will return a list l of (name, IP address, public key) of clients if a message is received on a specific port and append a MAC tag t.
+
+\subsubsection{Algorithms}
+\begin{verbatim}
+s(skey_server, d)
+d = [(name_i, addr_i, pkey_i), ...]
+t = E(skey_server, H(d), nonce)
+m = d || t
+
+v(pkey_server, m)
+split_index = |m| - |t|
+d, t = m[:split_index], m[split_index:]
+return (H(d) == D(pkey_old, t))
+\end{verbatim}
+
+\subsubsection{Proofs}
+Integrity
+
+Assumption 1.1.1 \\
+
+Freshness
+
+Assumption 1.1.2 \\
+
+Confidentiality
+
+Assumption 1.1.3 \\
+
+\subsection{Write List}
+The list can be written to if the client can prove that it can compute a valid tag t. This allows the client to write its IP address and public key to the list.
+
+\subsubsection{Algorithms}
+\begin{verbatim}
+s(skey_old, d)
+d = addr_new || pkey_new
+t = E(skey_old, H(d), nonce)
+m = d || t
+
+v(pkey_old, m)
+split_index = |m| - |t|
+d, t = m[:split_index], m[split_index:]
+return (H(d) == D(pkey_old, t))
+\end{verbatim}
+
+\subsubsection{Proofs}
+Integrity
+
+Assumption 1.1.1 \\
+
+Freshness
+
+Assumption 1.1.2 \\
+
+Confidentiality
+
+Assumption 1.1.3 \\
+
+\section{Client to Client}
+\subsection{Key Exchange}
+The first message to be exchanged is a shared symmetric key using asymmetric cryptography.
+
+\subsubsection{Algorithms}
+\begin{verbatim}
+E(pkey_peer, k, nonce) = c
+H(skey_self, c) = t
+
+if V(pkey_peer, t)
+    D(skey_self, c, nonce) = k
+\end{verbatim}
+
+\subsubsection{Proofs}
+Integrity
+
+Assumption 1.1.1 \\
+
+Freshness
+
+Assumption 1.1.2 \\
+
+Confidentiality
+
+Assumption 1.1.3 \\
+
+\subsection{Message Exchange}
+Messages use the symmetric key encryption to improve performance.
+
+\subsubsection{Algorithms}
+\begin{verbatim}
+E(k, m) = D(k, c) = H(k, ) ^ m
+
+E(k, m, nonce) = c
+H(k, c) = t
+
+if V(k, t)
+    D(k, c, nonce) = m
+\end{verbatim}
+
+\subsubsection{Proofs}
+Integrity
+
+Assumption 1.1.1 \\
+
+Freshness
+
+Assumption 1.1.2 \\
+
+Confidentiality
+
+Assumption 1.1.3 \\
+
+\subsection{Functional Capabilities}
+See client.tla and server.tla for a formal specification.
+\end{document}
