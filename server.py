@@ -14,7 +14,7 @@ class Args(IntEnum):
     keys = 2
 
 def main():
-    if len(argv) < len(Args): 
+    if len(argv) < len(Args) + 1: 
         args = ' '.join(f'<{a.name}>' for a in Args)
         print(f'usage: {argv[0]} {args}')
         exit(1)
@@ -34,10 +34,14 @@ def main():
     s.listen()
     conn, addr = s.accept()
 
+    # 24 bytes
     nonce = random(Box.NONCE_SIZE)
 
     # challenge
     conn.send(nonce)
+    enc = conn.recv(64)
+    print(f'len: {len(enc)}')
+    print(f'enc: {enc}')
 
 if __name__ == '__main__':
     main()

@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 from nacl.encoding import HexEncoder
-from nacl.public import PrivateKey
+from nacl.public import PrivateKey, PublicKey
 from sys import argv
 
+NUM_SERVERS = 1
+
+class Args(IntEnum):
+    numClients = 1
+    path = 2
+
 def main():
-    if len(argv) < 3: 
-        print(f'usage: {argv[0]} <numClients> <path>')
+    if len(argv) < len(Args) + 1: 
+        args = ' '.join(f'<{a.name}>' for a in Args)
+        print(f'usage: {argv[0]} {args}')
         exit(1)
 
     try:
@@ -18,9 +25,13 @@ def main():
         print('number of clients is not positive')
         exit(1)
 
-    hex_keys = [None] * numClients
+    hex_keys = [None] * (NUM_SERVERS + numClients)
 
-    for i in range(numClients):
+    for i in range(NUM_SERVERS):
+        sk = PrivateKey.generate()
+        hex_keys[i] = sk.public_key.encode(HexEncoder)
+
+    for i in range(NUM_SERVERS, len(hex_keys)):
         sk = PrivateKey.generate()
         hex_keys[i] = sk.encode(HexEncoder)
 
