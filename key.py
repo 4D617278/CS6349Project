@@ -22,10 +22,10 @@ def main():
 
     for i in range(numClients):
         sk = PrivateKey.generate()
-        hex_keys[i] = sk.encode(HexEncoder) + b'\n'
+        hex_keys[i] = sk.encode(HexEncoder)
 
     with open(argv[2], 'wb+') as f:
-        f.writelines(hex_keys)
+        f.write(b'\n'.join(hex_keys))
 
 if __name__ == '__main__':
     main()
