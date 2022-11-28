@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+from constants import BYTEORDER, MAX_ID_LEN, NUM_SERVERS, SERVER_ID
 from enum import IntEnum
-from nacl.public import Box 
+from nacl.encoding import HexEncoder
+from nacl.public import Box, PrivateKey, PublicKey
 from nacl.utils import random
 import socket
 from sys import argv
@@ -29,10 +31,25 @@ def main():
         print(f'{MIN_PORT} <= port <= {MAX_PORT}')
         exit(1)
 
+    keys = None
+    with open(argv[Args.keys], 'r') as f:
+        keys = f.read().splitlines()
+
+    pkeys = [None] * NUM_SERVERS
+    for i in range(NUM_SERVERS):
+        pkeys[i] = PublicKey(keys[i], HexEncoder)
+
+    skeys = [None] * (len(keys) - NUM_SERVERS + 1)
+    for i in range(NUM_SERVERS, len(keys)):
+        skeys[i] = PrivateKey(keys[i], HexEncoder)
+
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((HOST, port))
     s.listen()
     conn, addr = s.accept()
+
+    client_id_bytes = conn.recv(MAX_ID_LEN)
+    client_id = int.from_bytes(client_id_bytes, BYTEORDER)
 
     # 24 bytes
     nonce = random(Box.NONCE_SIZE)
@@ -40,8 +57,11 @@ def main():
     # challenge
     conn.send(nonce)
     enc = conn.recv(64)
-    print(f'len: {len(enc)}')
-    print(f'enc: {enc}')
+
+    box = Box(skeys[client_id], pkeys[SERVER_ID])
+    dec = box.decrypt(enc)
+
+    print(f'dec: {dec}, nonce: {nonce}')
 
 if __name__ == '__main__':
     main()

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
+from constants import NUM_SERVERS
+from enum import IntEnum
 from nacl.encoding import HexEncoder
 from nacl.public import PrivateKey, PublicKey
 from sys import argv
-
-NUM_SERVERS = 1
 
 class Args(IntEnum):
     numClients = 1

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from constants import BYTEORDER, MAX_ID_LEN, NUM_SERVERS, SERVER_ID
 from enum import IntEnum
 from nacl.encoding import HexEncoder
 from nacl.public import Box, PrivateKey, PublicKey
@@ -8,7 +9,6 @@ from sys import argv
 
 MIN_PORT = 0
 MAX_PORT = 65535
-SERVER_ID = 0
 
 class Args(IntEnum):
     host = 1
@@ -37,15 +37,17 @@ def main():
     with open(argv[Args.keys], 'r') as f:
         keys = f.read().split()
 
-    if id < 1 or id >= len(keys):
+    if id < NUM_SERVERS or id >= len(keys):
         print('id is invalid')
         exit(1)
 
-    sk = PrivateKey(keys[id], encoder=HexEncoder)
-    pk = PublicKey(keys[SERVER_ID], encoder=HexEncoder)
+    sk = PrivateKey(keys[id], HexEncoder)
+    pk = PublicKey(keys[SERVER_ID], HexEncoder)
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((argv[Args.host], port))
+
+    s.send(id.to_bytes(MAX_ID_LEN, BYTEORDER))
 
     nonce = s.recv(Box.NONCE_SIZE)
     box = Box(sk, pk)
