@@ -31,11 +31,13 @@ class Server:
     def start(self):
         print("Waiting for connection")
         self.s.listen()
+
         while True:
-            conn, _ = self.s.accept()
-            threading.Thread(target=self.connect_client, args=(conn,)).start()
+            conn, addr = self.s.accept()
+            args = (conn, addr)
+            threading.Thread(target=self.connect_client, args=args).start()
     
-    def connect_client(self, conn):
+    def connect_client(self, conn, addr):
         client_user_bytes = conn.recv(MAX_USERNAME_LEN)
         client_user = client_user_bytes.decode()
         print(f"Received connection request from client {client_user}")
@@ -72,23 +74,23 @@ class Server:
             print(f"Failed login from client {client_user}")
             conn.close()
 
-        self.clients[client_user] = "idle"
+        ip = socket.inet_aton(addr[0])
+        self.clients[client_user] = ip
 
         # session key
         session_key = random(SESSION_KEY_SIZE)
         signed_message = encrypt_and_sign(session_key, box, self.signing_key)
         conn.send(signed_message)
 
-        idle_clients = self.get_idle_clients()
-        message = b"List of available clients:\n"
-        message += b"\n".join(idle_clients)
-        print(message)
+        clients = self.get_clients()
+        print(f"List of available clients: {clients}")
+        message = b"\n".join(clients)
         conn.send(message)
 
         conn.close()
 
-    def get_idle_clients(self):
-        return [bytes(x, encoding="utf-8") for x in dict(filter(lambda client: client[1] == "idle", self.clients.items())).keys()]
+    def get_clients(self):
+        return [bytes(f"{name}:{addr}", "utf-8") for name, addr in self.clients.items()]
 
     def die(self):
         print("dying")

@@ -21,7 +21,7 @@ def main():
         default=8000,
         help="Port that server is running on",
     )
-    parser.add_argument("--user", help="Name of the user logging in")
+    parser.add_argument("user", help="Name of the user logging in")
     args = parser.parse_args()
 
     # key used to decrypt messages
@@ -69,8 +69,9 @@ def main():
 
     print(f"Future communication uses session key {session_key}")
 
+    # clients
     message = s.recv(MAX_DATA_SIZE)
-    print(message.decode())
+    print(f"List of available clients: {message.decode()}")
 
     inp = ""
     while inp != "q":
