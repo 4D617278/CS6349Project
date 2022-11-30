@@ -1,67 +1,82 @@
 #!/usr/bin/env python3
-from constants import BYTEORDER, MAX_ID_LEN, NUM_SERVERS, SERVER_ID
-from enum import IntEnum
+import argparse
+import socket
+
 from nacl.encoding import HexEncoder
 from nacl.public import Box, PrivateKey, PublicKey
+from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
-import socket
-from sys import argv
 
-HOST = '0.0.0.0'
-MIN_PORT = 1024
-MAX_PORT = 65535
+from config import HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE
+from utility import allowed_ports, encrypt_and_sign, get_signature_and_message
 
-class Args(IntEnum):
-    port = 1
-    keys = 2
 
 def main():
-    if len(argv) < len(Args) + 1: 
-        args = ' '.join(f'<{a.name}>' for a in Args)
-        print(f'usage: {argv[0]} {args}')
-        exit(1)
+    parser = argparse.ArgumentParser("Client application")
+    parser.add_argument(
+        "--port", type=allowed_ports, default=8000, help="Port to run server on"
+    )
+    args = parser.parse_args()
 
-    try:
-        port = int(argv[Args.port])
-    except ValueError:
-        print('port is not integer')
-        exit(1)
-
-    if port < MIN_PORT or MAX_PORT < port:
-        print(f'{MIN_PORT} <= port <= {MAX_PORT}')
-        exit(1)
-
-    keys = None
-    with open(argv[Args.keys], 'r') as f:
-        keys = f.read().splitlines()
-
-    pkeys = [None] * NUM_SERVERS
-    for i in range(NUM_SERVERS):
-        pkeys[i] = PublicKey(keys[i], HexEncoder)
-
-    skeys = [None] * (len(keys) - NUM_SERVERS + 1)
-    for i in range(NUM_SERVERS, len(keys)):
-        skeys[i] = PrivateKey(keys[i], HexEncoder)
+    # key used to decrypt messages
+    private_key = PrivateKey(
+        open("./key_pairs/server", encoding="utf-8").read(), HexEncoder
+    )
+    # key used to sign messages
+    signing_key = SigningKey(
+        open("./key_pairs/server_dsa", encoding="utf-8").read(), HexEncoder
+    )
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((HOST, port))
+    s.bind((HOST, args.port))
+    print("Waiting for connection")
     s.listen()
-    conn, addr = s.accept()
+    conn, _ = s.accept()
 
-    client_id_bytes = conn.recv(MAX_ID_LEN)
-    client_id = int.from_bytes(client_id_bytes, BYTEORDER)
+    client_user_bytes = conn.recv(MAX_USERNAME_LEN)
+    client_user = client_user_bytes.decode()
+    print(f"Received connection request from client {client_user}")
+
+    # key used to encrypt messages for the client
+    client_public_key = PublicKey(
+        open(f"./key_pairs/{client_user}.pub", encoding="utf-8").read(), HexEncoder
+    )
+    # key used to verify messages from the client
+    verify_key = VerifyKey(
+        open(f"./key_pairs/{client_user}_dsa.pub", encoding="utf-8").read(), HexEncoder
+    )
+
+    box = Box(private_key, client_public_key)
 
     # 24 bytes
     nonce = random(Box.NONCE_SIZE)
 
     # challenge
-    conn.send(nonce)
-    enc = conn.recv(64)
+    message = encrypt_and_sign(nonce, box, signing_key)
+    print(len(message))
+    print("Sending challenge to client")
+    conn.send(message)
 
-    box = Box(skeys[client_id], pkeys[SERVER_ID])
-    dec = box.decrypt(enc)
+    # response
+    message = conn.recv(Box.NONCE_SIZE + SIGNATURE_SIZE)
+    print("Received response from client")
+    signed_message, decrypted_nonce = get_signature_and_message(message)
 
-    print(f'dec: {dec}, nonce: {nonce}')
+    verify_key.verify(signed_message)
+    if nonce == decrypted_nonce:
+        print(f"Client {client_user} authenticated successfully")
+    else:
+        print(f"Failed login from client {client_user}")
+        conn.close()
 
-if __name__ == '__main__':
+    # session key
+    session_key = random(SESSION_KEY_SIZE)
+    signed_message = encrypt_and_sign(session_key, box, signing_key)
+    conn.send(signed_message)
+
+    s.shutdown(1)
+    s.close()
+
+
+if __name__ == "__main__":
     main()

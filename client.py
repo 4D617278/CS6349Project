@@ -1,58 +1,73 @@
 #!/usr/bin/env python3
-from constants import BYTEORDER, MAX_ID_LEN, NUM_SERVERS, SERVER_ID
-from enum import IntEnum
-from nacl.encoding import HexEncoder
-from nacl.public import Box, PrivateKey, PublicKey
-from nacl.utils import random
+import argparse
 import socket
-from sys import argv
+from time import sleep
 
-MIN_PORT = 0
-MAX_PORT = 65535
+from nacl.encoding import HexEncoder
+from nacl.hash import sha256
+from nacl.public import Box, PrivateKey, PublicKey
+from nacl.signing import SigningKey, VerifyKey
 
-class Args(IntEnum):
-    host = 1
-    port = 2
-    keys = 3
-    id = 4
+from config import METADATA_SIZE, SESSION_KEY_SIZE, SIGNATURE_SIZE
+from utility import allowed_ports, decrypt_and_verify, sign_hash
+
 
 def main():
-    if len(argv) < len(Args) + 1:
-        args = ' '.join(f'<{a.name}>' for a in Args)
-        print(f'usage: {argv[0]} {args}')
-        exit(1)
+    parser = argparse.ArgumentParser("Client application")
+    parser.add_argument("--host", default="localhost", help="Location of server")
+    parser.add_argument(
+        "--port",
+        type=allowed_ports,
+        default=8000,
+        help="Port that server is running on",
+    )
+    parser.add_argument("--user", help="Name of the user logging in")
+    args = parser.parse_args()
 
-    try:
-        port = int(argv[Args.port])
-        id = int(argv[Args.id])
-    except ValueError:
-        print('port or id is not integer')
-        exit(1)
+    # key used to decrypt messages
+    private_key = PrivateKey(
+        open(f"./key_pairs/{args.user}", encoding="utf-8").read(), HexEncoder
+    )
+    # key used to sign messages
+    signing_key = SigningKey(
+        open(f"./key_pairs/{args.user}_dsa", encoding="utf-8").read(), HexEncoder
+    )
+    # key used to encrypt messages for the server
+    server_public_key = PublicKey(
+        open("./key_pairs/server.pub", encoding="utf-8").read(), HexEncoder
+    )
+    # key used to verify messages from the server
+    verify_key = VerifyKey(
+        open("./key_pairs/server_dsa.pub", encoding="utf-8").read(), HexEncoder
+    )
 
-    if port < MIN_PORT or MAX_PORT < port:
-        print(f'{MIN_PORT} <= port <= {MAX_PORT}')
-        exit(1)
-
-    keys = None
-    with open(argv[Args.keys], 'r') as f:
-        keys = f.read().split()
-
-    if id < NUM_SERVERS or id >= len(keys):
-        print('id is invalid')
-        exit(1)
-
-    sk = PrivateKey(keys[id], HexEncoder)
-    pk = PublicKey(keys[SERVER_ID], HexEncoder)
+    box = Box(private_key, server_public_key)
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((argv[Args.host], port))
+    s.connect((args.host, args.port))
 
-    s.send(id.to_bytes(MAX_ID_LEN, BYTEORDER))
+    s.send(bytes(args.user, "utf-8"))
 
-    nonce = s.recv(Box.NONCE_SIZE)
-    box = Box(sk, pk)
-    enc = box.encrypt(nonce)
-    s.send(enc)
+    # challenge
+    print(Box.NONCE_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
+    message = s.recv(Box.NONCE_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
+    print("Received challenge from server")
+    decrypted_nonce = decrypt_and_verify(message, box, verify_key)
 
-if __name__ == '__main__':
+    # response
+    signed_message = sign_hash(decrypted_nonce, signing_key)
+    print("Sending response to server")
+    s.send(signed_message + decrypted_nonce)
+
+    encrypted_session_key = s.recv(SESSION_KEY_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
+    if not encrypted_session_key:
+        print("Unsuccessful authentication to server")
+        return
+    print("Successfully authenticated to server")
+    print(f"Client encrypted session key: {encrypted_session_key}")
+    session_key = decrypt_and_verify(encrypted_session_key, box, verify_key)
+
+    print(f"Future communication uses session key {session_key}")
+
+if __name__ == "__main__":
     main()

@@ -1,4 +1,0 @@
-BYTEORDER = 'little'
-MAX_ID_LEN = 1
-NUM_SERVERS = 1
-SERVER_ID = 0
