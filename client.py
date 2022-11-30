@@ -8,7 +8,7 @@ from nacl.hash import sha256
 from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
-from config import METADATA_SIZE, SESSION_KEY_SIZE, SIGNATURE_SIZE
+from config import METADATA_SIZE, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
 from utility import allowed_ports, decrypt_and_verify, sign_hash
 
 
@@ -59,15 +59,22 @@ def main():
     print("Sending response to server")
     s.send(signed_message + decrypted_nonce)
 
-    encrypted_session_key = s.recv(SESSION_KEY_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
-    if not encrypted_session_key:
+    # session key
+    message = s.recv(SESSION_KEY_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
+    if not message:
         print("Unsuccessful authentication to server")
         return
     print("Successfully authenticated to server")
-    print(f"Client encrypted session key: {encrypted_session_key}")
-    session_key = decrypt_and_verify(encrypted_session_key, box, verify_key)
+    session_key = decrypt_and_verify(message, box, verify_key)
 
     print(f"Future communication uses session key {session_key}")
+
+    message = s.recv(MAX_DATA_SIZE)
+    print(message.decode())
+
+    inp = ""
+    while inp != "q":
+        pass
 
 if __name__ == "__main__":
     main()

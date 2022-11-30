@@ -2,14 +2,16 @@
 import argparse
 import socket
 import threading
+from collections import defaultdict
 
 from nacl.encoding import HexEncoder
 from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
-from config import HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE
+from config import HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
 from utility import allowed_ports, encrypt_and_sign, get_signature_and_message
+
 
 class Server:
     def __init__(self, host, port):
@@ -24,6 +26,7 @@ class Server:
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.s.bind((host, port))
+        self.clients = defaultdict(str)
 
     def start(self):
         print("Waiting for connection")
@@ -69,12 +72,23 @@ class Server:
             print(f"Failed login from client {client_user}")
             conn.close()
 
+        self.clients[client_user] = "idle"
+
         # session key
         session_key = random(SESSION_KEY_SIZE)
         signed_message = encrypt_and_sign(session_key, box, self.signing_key)
         conn.send(signed_message)
 
+        idle_clients = self.get_idle_clients()
+        message = b"List of available clients:\n"
+        message += b"\n".join(idle_clients)
+        print(message)
+        conn.send(message)
+
         conn.close()
+
+    def get_idle_clients(self):
+        return [bytes(x, encoding="utf-8") for x in dict(filter(lambda client: client[1] == "idle", self.clients.items())).keys()]
 
     def die(self):
         print("dying")
