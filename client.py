@@ -69,8 +69,9 @@ def main():
 
     print(f"Future communication uses session key {session_key}")
 
+    # clients
     message = s.recv(MAX_DATA_SIZE)
-    print(message.decode())
+    print(f"List of available clients: {message.decode()}")
 
     inp = ""
     while inp != "q":
