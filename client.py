@@ -49,8 +49,7 @@ def main():
     s.send(bytes(args.user, "utf-8"))
 
     # challenge
-    print(Box.NONCE_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
-    message = s.recv(Box.NONCE_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
+    message = s.recv(MAX_DATA_SIZE)
     print("Received challenge from server")
     decrypted_nonce = decrypt_and_verify(message, box, verify_key)
 
@@ -60,7 +59,7 @@ def main():
     s.send(signed_message + decrypted_nonce)
 
     # session key
-    message = s.recv(SESSION_KEY_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
+    message = s.recv(MAX_DATA_SIZE)
     if not message:
         print("Unsuccessful authentication to server")
         return

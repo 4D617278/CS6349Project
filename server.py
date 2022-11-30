@@ -63,7 +63,7 @@ class Server:
         conn.send(message)
 
         # response
-        message = conn.recv(Box.NONCE_SIZE + SIGNATURE_SIZE)
+        message = conn.recv(MAX_DATA_SIZE)
         print("Received response from client")
         signed_message, decrypted_nonce = get_signature_and_message(message)
 
@@ -85,6 +85,7 @@ class Server:
         clients = self.get_clients()
         print(f"List of available clients: {clients}")
         message = b"\n".join(clients)
+        print("clients:", clients)
         conn.send(message)
 
         conn.close()
