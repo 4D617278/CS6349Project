@@ -22,14 +22,14 @@ def allowed_ports(port):
     raise argparse.ArgumentTypeError(f"{MIN_PORT} <= port <= {MAX_PORT}")
 
 def sign_hash(message, signing_key, hash_function=raw_sha256):
-    # Hash a message using hash_function and sign it using signing_key
+    """Hash a message using hash_function and sign it using signing_key"""
     hashed_message = hash_function(message)
     print(f"Hashed message: {hashed_message} of length {len(hashed_message)}")
     signed_message = signing_key.sign(hashed_message)
     return signed_message
 
 def encrypt_and_sign(message, box, signing_key, hash_function=raw_sha256):
-    # Encrypt a message using box and sign it using signing_key
+    """Encrypt a message using box and sign it using signing_key"""
     print(f"Original message: {message} of length {len(message)}")
     encrypted_message = box.encrypt(message)
     print(f"Encrypted message: {encrypted_message} of length {len(encrypted_message)}")
@@ -38,12 +38,12 @@ def encrypt_and_sign(message, box, signing_key, hash_function=raw_sha256):
     return signed_hash + encrypted_message
 
 def get_signature_and_message(message):
-    # Split the message into the signed hash and the encrypted message
+    """Split the message into the signed hash and the encrypted message"""
     signed_message, encrypted_message = message[:SIGNATURE_SIZE], message[SIGNATURE_SIZE:]
     return signed_message, encrypted_message
 
 def decrypt_and_verify(message, box, verify_key):
-    # Decrypt the message using box and verify the hash using verify_key
+    """Decrypt the message using box and verify the hash using verify_key"""
     signed_hash, encrypted_message = get_signature_and_message(message)
     print(f"Encrypted message: {encrypted_message} of length {len(encrypted_message)}")
     print(f"Signed hash: {signed_hash} of length {len(signed_hash)}")
@@ -53,16 +53,16 @@ def decrypt_and_verify(message, box, verify_key):
     return decrypted_message
 
 def xor(bytes1, bytes2):
-    # XOR two byte arrays
+    """XOR two byte arrays"""
     return bytes(x ^ y for (x, y) in zip(bytes1, bytes2))
 
 def pad(key, block_size=64):
-    # Pad key with 0's until block_size
+    """Pad key with 0's until block_size"""
     padding = bytearray(block_size - len(key))
     return key + padding
 
 def compute_block_sized_key(key, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256):
-    # Convert key into a key of size block_size
+    """Convert key into a key of size block_size"""
     if len(key) > block_size:
         key = hash_function(key)
     if len(key) < block_size:
@@ -70,7 +70,7 @@ def compute_block_sized_key(key, block_size=HASH_OUTPUT_SIZE, hash_function=raw_
     return key
 
 def hmac(key, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256):
-    # https://en.wikipedia.org/wiki/HMAC#Implementation
+    """https://en.wikipedia.org/wiki/HMAC#Implementation"""
     block_sized_key = compute_block_sized_key(key)
     opad = b"\x5c" * block_size
     ipad = b"\x36" * block_size
@@ -79,13 +79,14 @@ def hmac(key, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256):
     return hash_function(o_key_pad + hash_function(i_key_pad + message))
 
 def keyed_hash_encryption(key, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256):
-    # Encryption using HMAC-256 keystream in cipher feedback mode
+    """Encryption using HMAC-256 keystream in cipher feedback mode"""
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
     iv = hash_function(key)
     output = key_byte_arr
     encrypted = bytearray()
     prev_enc = iv
+    # TODO: pad the message to a multiple of block_size
     for i in range(0, len(message_byte_arr), HASH_OUTPUT_SIZE):
         block = message_byte_arr[i:i+HASH_OUTPUT_SIZE]
         # O(i) = HMAC(IV, C(i-1))
@@ -97,7 +98,7 @@ def keyed_hash_encryption(key, message, block_size=HASH_OUTPUT_SIZE, hash_functi
     return encrypted
 
 def keyed_hash_decryption(key, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256):
-    # Decryption using HMAC-256 keystream in cipher feedback mode
+    """Decryption using HMAC-256 keystream in cipher feedback mode"""
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
     iv = hash_function(key)
