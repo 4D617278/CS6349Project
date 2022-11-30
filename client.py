@@ -21,7 +21,7 @@ def main():
         default=8000,
         help="Port that server is running on",
     )
-    parser.add_argument("--user", help="Name of the user logging in")
+    parser.add_argument("user", help="Name of the user logging in")
     args = parser.parse_args()
 
     # key used to decrypt messages
