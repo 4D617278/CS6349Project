@@ -2,12 +2,15 @@ package main
 
 import (
     "bufio"
+    "bytes"
     "crypto/rand"
     "encoding/hex"
     "flag"
     "fmt"
+    "golang.org/x/crypto/nacl/box"
+    "golang.org/x/crypto/curve25519"
+    "io"
     "log"
-    "math/big"
     "net"
     "os"
 )
@@ -15,8 +18,13 @@ import (
 const (
     MIN_PORT = 1024
     MAX_PORT = 65535
-    KEY_SIZE = 32
 )
+
+func check(err error) {
+    if err != nil {
+        log.Fatal(err)
+    }
+}
 
 func main() {
     var port int
@@ -34,75 +42,59 @@ func main() {
     if len(keyPath) <= 0 {
         log.Fatal("no keys file") 
     }
-    
-    file, err := os.Open(keyPath)
 
-    if err != nil {
-       log.Fatal(err) 
-    }
+    hexBytes, err := os.ReadFile(keyPath)
+    check(err)
 
-    scanner := bufio.NewScanner(file)
+    hexArray := bytes.Split(hexBytes, []byte{'\n'})
+    keys := make([][curve25519.ScalarSize]byte, len(hexArray))
 
-    var keys [32][]byte
+    for i := 0; i < len(hexArray); i++ {
+        n, err := hex.Decode(keys[i][:], hexArray[i])
+        check(err)    
 
-    for scanner.Scan() {
-        keys[0], err = hex.DecodeString(scanner.Text())
-        
-        if err != nil {
-            log.Fatal(err)
+        if n != curve25519.ScalarSize {
+            log.Fatal("Bad key")
         }
-    }
-
-    file.Close()
-    err = scanner.Err()
-
-    if err != nil {
-        log.Fatal(err)
     }
 
     address := fmt.Sprintf(":%d", port)
     listener, err := net.Listen("tcp", address)
-
-    if err != nil {
-        log.Fatal(err)
-    }
+    check(err)
 
     for {
         conn, err := listener.Accept()
-
-        if err != nil {
-            log.Fatal(err)    
-        }
+        check(err)
 
         id, err := bufio.NewReader(conn).ReadByte()
 
-        fmt.Printf("Id: %d\n", id)
-
-        go verify(conn, keys[id])
+        go verify(conn, keys[0], keys[id])
     }
 }
 
-func verify(conn net.Conn, key []byte) {
-    // generate nonce
-    nonce, err := rand.Int(rand.Reader, big.NewInt(27))
+func verify(conn net.Conn, pubKey [32]byte, key [32]byte) {
+    var test [24]byte
+    var nonce [24]byte
 
-    if err != nil {
-        log.Fatal(err)
-    }
+    _, err := io.ReadFull(rand.Reader, test[:])
+    check(err)
 
-    fmt.Printf("Nonce: %v\n", nonce)
+    conn.Write(test[:])
 
-    // challenge
-    fmt.Fprintf(conn, "Test")
+    enc := make([]byte, 64)
+    reader := bufio.NewReader(conn)
+
+    _, err = io.ReadFull(reader, enc)
+    check(err)
+
+    copy(nonce[:], enc[:len(nonce)])
 
     // decrypt
-    enc, err := bufio.NewReader(conn).ReadBytes('\n')
+    msg, valid := box.Open(nil, enc[len(nonce):], &nonce, &pubKey, &key)
 
-    /*
-    if err != nil {
-        log.Fatal(err)
+    if valid && bytes.Equal(test[:], msg[:]) {
+        fmt.Println("Valid")
+    } else {
+        fmt.Println("Invalid")
     }
-    */
-
-    fmt.Printf("Enc: %v", enc)
 }
