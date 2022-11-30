@@ -59,7 +59,7 @@ def main():
     s.send(signed_message + decrypted_nonce)
 
     # session key
-    message = s.recv(MAX_DATA_SIZE)
+    message = s.recv(SESSION_KEY_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
     if not message:
         print("Unsuccessful authentication to server")
         return
