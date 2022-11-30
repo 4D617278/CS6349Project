@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from constants import BYTEORDER, MAX_ID_LEN, NUM_SERVERS, SERVER_ID
+from constants import BYTEORDER, ID_LEN, NUM_SERVERS, SERVER_ID
 from enum import IntEnum
 from nacl.encoding import HexEncoder
 from nacl.public import Box, PrivateKey, PublicKey
@@ -33,6 +33,20 @@ def main():
         print(f'{MIN_PORT} <= port <= {MAX_PORT}')
         exit(1)
 
+    client_sk, server_pk = get_sk(id)
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((argv[Args.host], port))
+
+    s.send(id.to_bytes(ID_LEN, BYTEORDER))
+
+    nonce = s.recv(Box.NONCE_SIZE)
+    box = Box(private_key=client_sk, public_key=server_pk)
+    enc = box.encrypt(nonce)
+
+    s.send(enc)
+
+def get_sk(id):
     keys = None
     with open(argv[Args.keys], 'r') as f:
         keys = f.read().split()
@@ -41,18 +55,10 @@ def main():
         print('id is invalid')
         exit(1)
 
-    sk = PrivateKey(keys[id], HexEncoder)
-    pk = PublicKey(keys[SERVER_ID], HexEncoder)
+    client_sk = PrivateKey(keys[SERVER_ID + id], HexEncoder)
+    server_pk = PublicKey(keys[SERVER_ID], HexEncoder)
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((argv[Args.host], port))
-
-    s.send(id.to_bytes(MAX_ID_LEN, BYTEORDER))
-
-    nonce = s.recv(Box.NONCE_SIZE)
-    box = Box(sk, pk)
-    enc = box.encrypt(nonce)
-    s.send(enc)
+    return client_sk, server_pk
 
 if __name__ == '__main__':
     main()

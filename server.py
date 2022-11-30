@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from constants import BYTEORDER, MAX_ID_LEN, NUM_SERVERS, SERVER_ID
+from constants import BYTEORDER, ID_LEN, NUM_SERVERS, SERVER_ID
 from enum import IntEnum
 from nacl.encoding import HexEncoder
 from nacl.public import Box, PrivateKey, PublicKey
@@ -48,7 +48,7 @@ def main():
     s.listen()
     conn, addr = s.accept()
 
-    client_id_bytes = conn.recv(MAX_ID_LEN)
+    client_id_bytes = conn.recv(ID_LEN)
     client_id = int.from_bytes(client_id_bytes, BYTEORDER)
 
     # 24 bytes
