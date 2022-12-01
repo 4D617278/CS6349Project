@@ -96,7 +96,7 @@ class Server:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((ip, port))
-        self.send_key(sock)
+        self.send_key(box, sock)
 
         # conn.close()
 
