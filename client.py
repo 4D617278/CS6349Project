@@ -9,7 +9,7 @@ from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
 from config import CLIENT_PORT, HOST, METADATA_SIZE, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
-from utility import client_port, encrypt_and_sign, recv_decrypt, server_port, sign_hash
+from utility import client_port, mac_send, recv_decrypt, server_port, sign_send
 
 class Client:
     def __init__(self, user, port):
@@ -68,9 +68,7 @@ class Client:
         decrypted_nonce = recv_decrypt(s, box, self.verify_key)
 
         # response
-        message, signature = sign_hash(decrypted_nonce, self.signing_key)
-        print("Sending response to server")
-        s.send(message + signature + decrypted_nonce)
+        sign_send(s, decrypted_nonce, self.signing_key)
 
         # select user
         message = s.recv(MAX_DATA_SIZE)
@@ -94,8 +92,7 @@ class Client:
             name = input("Name: ")
         
         name = bytes(name, 'utf-8')
-        enc = encrypt_and_sign(name, box, self.signing_key)
-        s.send(enc)
+        mac_send(s, name, box, self.signing_key)
 
         # session key
         session_key = recv_decrypt(s, box, self.verify_key)

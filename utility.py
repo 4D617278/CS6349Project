@@ -73,9 +73,20 @@ def decrypt_and_verify(message, box, verify_key, hash_function=raw_sha256):
     print(f"Decrypted message: {decrypted_message} of length {len(decrypted_message)}")
     return decrypted_message
 
+
+def mac_send(sock, msg, box, sign_key):
+    enc = encrypt_and_sign(msg, box, sign_key)
+    sock.send(enc)
+
+
 def recv_decrypt(sock, box, verify_key):
     message = sock.recv(MAX_DATA_SIZE)
     return decrypt_and_verify(message, box, verify_key)
+
+
+def sign_send(sock, msg, sign_key):
+    hash, signature = sign_hash(msg, sign_key)
+    sock.send(hash + signature + msg)
 
 
 def xor(bytes1, bytes2):
