@@ -83,11 +83,7 @@ class Server:
                     msg = b"\n".join(self.get_clients())
                     mac_send(conn, msg, sym_key)
 
-                case 'q':
-                    conn.close()
-                    break
-
-                case _:
+                case 'p':
                     # peer
                     user = cmd
 
@@ -98,6 +94,11 @@ class Server:
 
                     # session key
                     self.send_key(conn, sym_key)
+
+                case _:
+                    conn.close()
+                    del self.clients[client_user]
+                    break
 
     def send_key(self, socket, sym_key):
         session_key = random(SESSION_KEY_SIZE)

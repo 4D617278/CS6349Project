@@ -53,6 +53,8 @@ class Client:
             match cmd:
                 case "g":
                    self.get_clients()  
+                case "c":
+                   self.chat()  
                 case _:
                     print("Commands: g")
 
@@ -71,6 +73,18 @@ class Client:
             # msg = conn.recv_dec(self.msgs, )
 
             conn.close()
+
+    def chat(self):
+        user = input("Username: ")
+
+        ip, port, key = self.clients[user]
+
+        self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.peer.connect((ip, int(port)))
+
+        msg = input("> ")
+        mac_send(self.peer, msg, key)
+
 
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

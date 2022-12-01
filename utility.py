@@ -105,6 +105,10 @@ def mac_send(sock, msg, key, box=None):
 
 def recv_dec(sock, key, box=None):
     msg = sock.recv(MAX_DATA_SIZE)
+
+    if not msg:
+        return b''
+
     if box:
         return decrypt_and_verify(msg, box, key)
     else:
