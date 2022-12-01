@@ -62,9 +62,9 @@ class Client:
         decrypted_nonce = decrypt_and_verify(message, box, self.verify_key)
 
         # response
-        signed_message = sign_hash(decrypted_nonce, self.signing_key)
+        message, signature = sign_hash(decrypted_nonce, self.signing_key)
         print("Sending response to server")
-        s.send(signed_message + decrypted_nonce)
+        s.send(message + signature + decrypted_nonce)
 
         # session key
         message = s.recv(MAX_DATA_SIZE)
