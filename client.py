@@ -30,23 +30,32 @@ class Client:
         self.verify_key = VerifyKey(
             open("./key_pairs/server_dsa.pub", encoding="utf-8").read(), HexEncoder
         )
+        self.keys = {}
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.s.bind((HOST, port))
 
     def start(self, host, port):
         args = (host, port)
+        threading.Thread(target=self.chat).start()
         threading.Thread(target=self.connect_server, args=args).start()
-        #threading.Thread(target=self.chat).start()
 
-    #def chat(self):
-    #    self.s.listen()
+    def chat(self):
+        self.s.listen()
 
-    #    while True:
-    #        conn, addr = self.s.accept()
-    #        msg = conn.recv(MAX_DATA_SIZE)
-    #        print(f"Msg: {msg}")
-    #        conn.close()
+        while len(self.keys) > 0:
+            conn, addr = self.s.accept()
+
+            if addr[0] not in self.keys:
+                conn.close()
+                continue
+
+            key = self.keys[addr[0]]
+            users.remove(addr[0])
+
+            msg = conn.recv(MAX_DATA_SIZE)
+
+            conn.close()
 
     def connect_server(self, host, port):
         box = Box(self.private_key, self.server_public_key)
@@ -66,20 +75,14 @@ class Client:
         print("Sending response to server")
         s.send(message + signature + decrypted_nonce)
 
-        # session key
+        # select user
         message = s.recv(MAX_DATA_SIZE)
         if not message:
             print("Unsuccessful authentication to server")
             return
         print("Successfully authenticated to server")
-        session_key = decrypt_and_verify(message, box, self.verify_key)
 
-        print(f"Future communication uses session key {session_key}")
-
-        # select user
-        message = s.recv(MAX_DATA_SIZE)
         name_ips = message.decode().split('\n')
-
         name_to_ip = {}
 
         for name_ip in name_ips:
@@ -94,9 +97,15 @@ class Client:
             name = input("Name: ")
         
         name = bytes(name, 'utf-8')
-        message = encrypt_and_sign(name, box, self.signing_key)
-        s.send(message)
+        enc = encrypt_and_sign(name, box, self.signing_key)
+        s.send(enc)
 
+        # session key
+        message = s.recv(MAX_DATA_SIZE)
+        session_key = decrypt_and_verify(message, box, self.verify_key)
+        self.keys[name] = session_key
+
+        print(f"Future communication uses session key {session_key}")
 
     def die(self):
         self.s.shutdown(1)

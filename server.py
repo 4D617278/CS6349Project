@@ -76,15 +76,14 @@ class Server:
 
         self.clients[client_user] = addr[0]
 
-        # session key
-        self.send_key(box, conn)
-
+        # client list
         clients = self.get_clients()
         print(f"List of available clients: {clients}")
         message = b"\n".join(clients)
         print("clients:", clients)
         conn.send(message)
 
+        # peer
         user = None
         while user not in self.clients:
             enc = conn.recv(MAX_DATA_SIZE)
@@ -94,9 +93,11 @@ class Server:
         ip = self.clients[user]
         port = CLIENT_PORT
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((ip, port))
-        self.send_key(box, sock)
+        # session key
+        self.send_key(box, conn)
+        peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer.connect((ip, port))
+        self.send_key(box, peer)
 
         # conn.close()
 
