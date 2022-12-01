@@ -9,7 +9,7 @@ from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
-from config import CLIENT_PORT, HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
+from config import HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
 from utility import mac_send, recv_decrypt, recv_verify, server_port, verify
 
 
@@ -68,38 +68,38 @@ class Server:
             print(f"Failed login from client {client_user}")
             conn.close()
 
-        self.clients[client_user] = addr[0]
+        # ip:port
+        session_key = random(SESSION_KEY_SIZE)
+        self.clients[client_user] = f"{addr[0]}:{addr[1]}:{session_key}"
 
-        # client list
-        clients = self.get_clients()
-        print(f"List of available clients: {clients}")
-        msg = b"\n".join(clients)
-        print("clients:", clients)
-        mac_send(conn, msg, box, self.signing_key)
+        while True:
+            cmd = recv_decrypt(conn, box, verify_key).decode()
 
-        # peer
-        user = None
-        while user not in self.clients:
-            user = recv_decrypt(conn, box, verify_key)
-            user = user.decode()
+            match cmd:
+                case 'g':
+                    # client list
+                    msg = b"\n".join(self.get_clients())
+                    mac_send(conn, msg, box, self.signing_key)
 
-        ip = self.clients[user]
-        port = CLIENT_PORT
+                case _:
+                    # peer
+                    user = cmd
 
-        # session key
-        self.send_key(box, conn)
-        peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        peer.connect((ip, port))
-        self.send_key(box, peer)
+                    if user not in self.clients:
+                        continue
 
-        # conn.close()
+                    ip, port, key = self.clients[user].split(':')
+
+                    # session key
+                    self.send_key(box, conn)
+
+        conn.close()
 
     def send_key(self, box, socket):
-        session_key = random(SESSION_KEY_SIZE)
         mac_send(socket, session_key, box, self.signing_key)
 
     def get_clients(self):
-        return [bytes(f"{name}:{addr}", "utf-8") for name, addr in self.clients.items()]
+        return [bytes(f"{name}:{val}", "utf-8") for name, val in self.clients.items()]
 
     def die(self):
         print("dying")

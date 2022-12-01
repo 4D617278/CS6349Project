@@ -8,7 +8,7 @@ from nacl.hash import sha256
 from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
-from config import CLIENT_PORT, HOST, METADATA_SIZE, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
+from config import HOST
 from utility import client_port, mac_send, recv_decrypt, server_port, sign_send
 
 class Client:
@@ -30,78 +30,86 @@ class Client:
         self.verify_key = VerifyKey(
             open("./key_pairs/server_dsa.pub", encoding="utf-8").read(), HexEncoder
         )
-        self.keys = {}
+        self.auth = 0
+        self.box = Box(self.private_key, self.server_public_key)
+        self.clients = {}
         self.peer = None
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.s.bind((HOST, port))
+        self.server = None
+
+        self.msgs = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.msgs.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.msgs.bind((HOST, port))
 
     def start(self, host, port):
         args = (host, port)
-        threading.Thread(target=self.chat).start()
-        threading.Thread(target=self.connect_server, args=args).start()
+        threading.Thread(target=self.shell).start()
+        threading.Thread(target=self.login, args=args).start()
 
-    def chat(self):
-        self.s.listen()
+    def shell(self):
+        cmd = ""
+
+        while cmd != "q":
+            cmd = input("> ")
+
+            match cmd:
+                case "g":
+                   self.get_clients()  
+                case _:
+                    print("Commands: g")
+
+        self.die()
+
+    def get_msg():
+        self.msgs.listen()
 
         while True:
-            conn, addr = self.s.accept()
+            conn, addr = self.msgs.accept()
 
             if addr[0] != self.peer:
                 conn.close()
                 continue
 
-            msg = conn.recv(MAX_DATA_SIZE)
+            # msg = conn.recv_decrypt(self.msgs, )
 
             conn.close()
 
-    def connect_server(self, host, port):
-        box = Box(self.private_key, self.server_public_key)
+    def login(self, host, port):
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server.connect((host, port))
 
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((host, port))
-
-        s.send(bytes(self.user, "utf-8"))
+        self.server.send(bytes(self.user, "utf-8"))
 
         # challenge
         print("Received challenge from server")
-        decrypted_nonce = recv_decrypt(s, box, self.verify_key)
+        decrypted_nonce = recv_decrypt(self.server, self.box, self.verify_key)
 
         # response
-        sign_send(s, decrypted_nonce, self.signing_key)
+        sign_send(self.server, decrypted_nonce, self.signing_key)
 
-        # select user
-        client_list = recv_decrypt(s, box, self.verify_key)
+        self.get_clients()
+
+    def get_clients(self):
+        mac_send(self.server, b'g', self.box, self.signing_key)
+        client_list = recv_decrypt(self.server, self.box, self.verify_key)
+
         if not client_list:
-            print("Unsuccessful authentication to server")
+            self.auth = 0
+            print("Not logged in")
             return
-        print("Successfully authenticated to server")
 
-        name_ips = client_list.decode().split('\n')
-        name_to_ip = {}
+        self.auth = 1
 
-        for name_ip in name_ips:
-            name, ip = name_ip.split(':')
-            name_to_ip[name] = ip
+        clients = client_list.decode().split('\n')
 
-        names = '\n'.join(name_to_ip.keys())
-        print(f"List of available clients: {names}")
-
-        name = ""
-        while name not in name_to_ip:
-            name = input("Name: ")
-        
-        name = bytes(name, 'utf-8')
-        mac_send(s, name, box, self.signing_key)
-
-        # session key
-        session_key = recv_decrypt(s, box, self.verify_key)
-        self.peer = name_to_ip[name]
-        self.keys[address] = session_key
+        for client in clients:
+            name, ip, port, key = client.split(':')
+            self.clients[name] = (ip, port, key)
 
     def die(self):
-        self.s.shutdown(1)
-        self.s.close()
+        self.msgs.shutdown(1)
+        self.msgs.close()
+        self.server.shutdown(1)
+        self.server.close()
 
 def main():
     parser = argparse.ArgumentParser("Client application")
@@ -123,7 +131,6 @@ def main():
 
     c = Client(args.user, args.client_port)
     c.start(args.host, args.server_port)
-    c.die()
 
 if __name__ == "__main__":
     main()
