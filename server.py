@@ -74,8 +74,7 @@ class Server:
             print(f"Failed login from client {client_user}")
             conn.close()
 
-        ip = socket.inet_aton(addr[0])
-        self.clients[client_user] = ip
+        self.clients[client_user] = addr[0]
 
         # session key
         self.send_key(box, conn)
@@ -88,8 +87,9 @@ class Server:
 
         user = None
         while user not in self.clients:
-            enc = conn.recv(MAX_USERNAME_LEN)
+            enc = conn.recv(MAX_DATA_SIZE)
             user = decrypt_and_verify(enc, box, verify_key)
+            user = user.decode()
 
         ip = self.clients[user]
         port = CLIENT_PORT
