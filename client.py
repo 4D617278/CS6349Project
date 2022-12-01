@@ -54,9 +54,9 @@ def main():
     decrypted_nonce = decrypt_and_verify(message, box, verify_key)
 
     # response
-    signed_message = sign_hash(decrypted_nonce, signing_key)
+    hashed_message, signature = sign_hash(decrypted_nonce, signing_key)
     print("Sending response to server")
-    s.send(signed_message + decrypted_nonce)
+    s.send(hashed_message + signature + decrypted_nonce)
 
     # session key
     message = s.recv(SESSION_KEY_SIZE + METADATA_SIZE + SIGNATURE_SIZE)
@@ -72,8 +72,10 @@ def main():
     message = s.recv(MAX_DATA_SIZE)
     print(f"List of available clients: {message.decode()}")
 
+
     inp = ""
     while inp != "q":
+
         pass
 
 if __name__ == "__main__":
