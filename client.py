@@ -131,20 +131,20 @@ class Client:
 
 def main():
     parser = argparse.ArgumentParser("Client application")
+    parser.add_argument("user", help="Name of the user logging in")
     parser.add_argument("--host", default="localhost", help="Location of server")
     parser.add_argument(
-        "--server_port",
+        "--server-port",
         type=server_port,
         default=8000,
         help="Port that server is running on",
     )
     parser.add_argument(
-        "--client_port",
+        "--client-port",
         type=client_port,
         default=32768,
         help="Port that client is running on",
     )
-    parser.add_argument("user", help="Name of the user logging in")
     args = parser.parse_args()
 
     c = Client(args.user, args.client_port)
