@@ -73,9 +73,9 @@ class Server:
         # client list
         clients = self.get_clients()
         print(f"List of available clients: {clients}")
-        message = b"\n".join(clients)
+        msg = b"\n".join(clients)
         print("clients:", clients)
-        conn.send(message)
+        mac_send(conn, msg, box, self.signing_key)
 
         # peer
         user = None

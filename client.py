@@ -71,13 +71,13 @@ class Client:
         sign_send(s, decrypted_nonce, self.signing_key)
 
         # select user
-        message = s.recv(MAX_DATA_SIZE)
-        if not message:
+        client_list = recv_decrypt(s, box, self.verify_key)
+        if not client_list:
             print("Unsuccessful authentication to server")
             return
         print("Successfully authenticated to server")
 
-        name_ips = message.decode().split('\n')
+        name_ips = client_list.decode().split('\n')
         name_to_ip = {}
 
         for name_ip in name_ips:
