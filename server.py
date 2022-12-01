@@ -10,7 +10,7 @@ from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
 from config import CLIENT_PORT, HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
-from utility import decrypt_and_verify, server_port, encrypt_and_sign, verify, get_hash_signature_message
+from utility import mac_send, recv_decrypt, recv_verify, server_port, verify
 
 
 class Server:
@@ -57,17 +57,11 @@ class Server:
         nonce = random(Box.NONCE_SIZE)
 
         # challenge
-        message = encrypt_and_sign(nonce, box, self.signing_key)
-        print(len(message))
-        print("Sending challenge to client")
-        conn.send(message)
+        mac_send(conn, nonce, box, self.signing_key)
 
         # response
-        message = conn.recv(MAX_DATA_SIZE)
-        print("Received response from client")
-        hashed_message, signature, decrypted_nonce = get_hash_signature_message(message)
+        decrypted_nonce = recv_verify(conn, verify_key)
 
-        verify(decrypted_nonce, hashed_message, signature, verify_key)
         if nonce == decrypted_nonce:
             print(f"Client {client_user} authenticated successfully")
         else:
@@ -86,8 +80,7 @@ class Server:
         # peer
         user = None
         while user not in self.clients:
-            enc = conn.recv(MAX_DATA_SIZE)
-            user = decrypt_and_verify(enc, box, verify_key)
+            user = recv_decrypt(conn, box, verify_key)
             user = user.decode()
 
         ip = self.clients[user]
@@ -103,8 +96,7 @@ class Server:
 
     def send_key(self, box, socket):
         session_key = random(SESSION_KEY_SIZE)
-        signed_message = encrypt_and_sign(session_key, box, self.signing_key)
-        socket.send(signed_message)
+        mac_send(socket, session_key, box, self.signing_key)
 
     def get_clients(self):
         return [bytes(f"{name}:{addr}", "utf-8") for name, addr in self.clients.items()]

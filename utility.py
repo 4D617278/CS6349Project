@@ -80,8 +80,15 @@ def mac_send(sock, msg, box, sign_key):
 
 
 def recv_decrypt(sock, box, verify_key):
-    message = sock.recv(MAX_DATA_SIZE)
-    return decrypt_and_verify(message, box, verify_key)
+    msg = sock.recv(MAX_DATA_SIZE)
+    return decrypt_and_verify(msg, box, verify_key)
+
+
+def recv_verify(sock, verify_key):
+    msg = sock.recv(MAX_DATA_SIZE)
+    hash, signature, msg = get_hash_signature_message(msg)
+    verify(msg, hash, signature, verify_key)
+    return msg
 
 
 def sign_send(sock, msg, sign_key):
