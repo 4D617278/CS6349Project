@@ -158,7 +158,7 @@ def keyed_hash_encryption(
     key, iv, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256
 ):
     """Encryption using HMAC-256 keystream in cipher feedback mode"""
-    assert len(iv) == HASH_OUTPUT_SIZE:
+    assert len(iv) == HASH_OUTPUT_SIZE
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
     output = key_byte_arr
@@ -183,7 +183,7 @@ def keyed_hash_decryption(
     key, iv, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256
 ):
     """Decryption using HMAC-256 keystream in cipher feedback mode"""
-    assert len(iv) == HASH_OUTPUT_SIZE:
+    assert len(iv) == HASH_OUTPUT_SIZE
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
     output = key_byte_arr
