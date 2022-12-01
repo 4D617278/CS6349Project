@@ -1,80 +1,129 @@
 #!/usr/bin/env python3
 import argparse
 import socket
+import threading
 from time import sleep
-
-from nacl.encoding import HexEncoder
-from nacl.hash import sha256
+from nacl.encoding import HexEncoder 
+from nacl.hash import sha256 
 from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
-from config import METADATA_SIZE, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
-from utility import allowed_ports, decrypt_and_verify, sign_hash
+from config import CLIENT_PORT, HOST, METADATA_SIZE, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
+from utility import client_port, decrypt_and_verify, encrypt_and_sign, server_port, sign_hash
 
+class Client:
+    def __init__(self, user, port):
+        self.user = user
+        # key used to decrypt messages
+        self.private_key = PrivateKey(
+            open(f"./key_pairs/{user}", encoding="utf-8").read(), HexEncoder
+        )
+        # key used to sign messages
+        self.signing_key = SigningKey(
+            open(f"./key_pairs/{user}_dsa", encoding="utf-8").read(), HexEncoder
+        )
+        # key used to encrypt messages for the server
+        self.server_public_key = PublicKey(
+            open("./key_pairs/server.pub", encoding="utf-8").read(), HexEncoder
+        )
+        # key used to verify messages from the server
+        self.verify_key = VerifyKey(
+            open("./key_pairs/server_dsa.pub", encoding="utf-8").read(), HexEncoder
+        )
+        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.s.bind((HOST, port))
+
+    def start(self, host, port):
+        args = (host, port)
+        threading.Thread(target=self.connect_server, args=args).start()
+        #threading.Thread(target=self.chat).start()
+
+    #def chat(self):
+    #    self.s.listen()
+
+    #    while True:
+    #        conn, addr = self.s.accept()
+    #        msg = conn.recv(MAX_DATA_SIZE)
+    #        print(f"Msg: {msg}")
+    #        conn.close()
+
+    def connect_server(self, host, port):
+        box = Box(self.private_key, self.server_public_key)
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((host, port))
+
+        s.send(bytes(self.user, "utf-8"))
+
+        # challenge
+        message = s.recv(MAX_DATA_SIZE)
+        print("Received challenge from server")
+        decrypted_nonce = decrypt_and_verify(message, box, self.verify_key)
+
+        # response
+        signed_message = sign_hash(decrypted_nonce, self.signing_key)
+        print("Sending response to server")
+        s.send(signed_message + decrypted_nonce)
+
+        # session key
+        message = s.recv(MAX_DATA_SIZE)
+        if not message:
+            print("Unsuccessful authentication to server")
+            return
+        print("Successfully authenticated to server")
+        session_key = decrypt_and_verify(message, box, self.verify_key)
+
+        print(f"Future communication uses session key {session_key}")
+
+        # select user
+        message = s.recv(MAX_DATA_SIZE)
+        name_ips = message.decode().split('\n')
+
+        name_to_ip = {}
+
+        for name_ip in name_ips:
+            name, ip = name_ip.split(':')
+            name_to_ip[name] = ip
+
+        names = '\n'.join(name_to_ip.keys())
+        print(f"List of available clients: {names}")
+
+        name = ""
+        while name not in name_to_ip:
+            name = input("Name: ")
+        
+        name = bytes(name, 'utf-8')
+        message = encrypt_and_sign(name, box, self.signing_key)
+        s.send(message)
+
+
+    def die(self):
+        self.s.shutdown(1)
+        self.s.close()
 
 def main():
     parser = argparse.ArgumentParser("Client application")
     parser.add_argument("--host", default="localhost", help="Location of server")
     parser.add_argument(
-        "--port",
-        type=allowed_ports,
+        "--server_port",
+        type=server_port,
         default=8000,
         help="Port that server is running on",
+    )
+    parser.add_argument(
+        "--client_port",
+        type=client_port,
+        default=32768,
+        help="Port that client is running on",
     )
     parser.add_argument("user", help="Name of the user logging in")
     args = parser.parse_args()
 
-    # key used to decrypt messages
-    private_key = PrivateKey(
-        open(f"./key_pairs/{args.user}", encoding="utf-8").read(), HexEncoder
-    )
-    # key used to sign messages
-    signing_key = SigningKey(
-        open(f"./key_pairs/{args.user}_dsa", encoding="utf-8").read(), HexEncoder
-    )
-    # key used to encrypt messages for the server
-    server_public_key = PublicKey(
-        open("./key_pairs/server.pub", encoding="utf-8").read(), HexEncoder
-    )
-    # key used to verify messages from the server
-    verify_key = VerifyKey(
-        open("./key_pairs/server_dsa.pub", encoding="utf-8").read(), HexEncoder
-    )
+    c = Client(args.user, args.client_port)
+    c.start(args.host, args.server_port)
+    c.die()
 
-    box = Box(private_key, server_public_key)
-
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((args.host, args.port))
-
-    s.send(bytes(args.user, "utf-8"))
-
-    # challenge
-    message = s.recv(MAX_DATA_SIZE)
-    print("Received challenge from server")
-    decrypted_nonce = decrypt_and_verify(message, box, verify_key)
-
-    # response
-    signed_message = sign_hash(decrypted_nonce, signing_key)
-    print("Sending response to server")
-    s.send(signed_message + decrypted_nonce)
-
-    # session key
-    message = s.recv(MAX_DATA_SIZE)
-    if not message:
-        print("Unsuccessful authentication to server")
-        return
-    print("Successfully authenticated to server")
-    session_key = decrypt_and_verify(message, box, verify_key)
-
-    print(f"Future communication uses session key {session_key}")
-
-    # clients
-    message = s.recv(MAX_DATA_SIZE)
-    print(f"List of available clients: {message.decode()}")
-
-    inp = ""
-    while inp != "q":
-        pass
 
 if __name__ == "__main__":
     main()
