@@ -80,7 +80,11 @@ class Client:
         ip, port, key = self.clients[user]
 
         self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.peer.connect((ip, int(port)))
+        try:
+            self.peer.connect((ip, int(port)))
+        except ConnectionRefusedError:
+            print(f'{user} is busy')
+            return
 
         msg = input("> ")
         mac_send(self.peer, msg, key)
