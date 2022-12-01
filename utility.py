@@ -5,28 +5,17 @@ from nacl.utils import random
 from nacl.encoding import RawEncoder
 from nacl.signing import SignedMessage
 
-from config import SIGNATURE_SIZE, HASH_OUTPUT_SIZE, MAX_DATA_SIZE
-
-MIN_SERVER_PORT = 0
-MAX_SERVER_PORT = 32767
-MIN_CLIENT_PORT = 32768
-MAX_CLIENT_PORT = 65535
+from config import SIGNATURE_SIZE, HASH_OUTPUT_SIZE, MAX_DATA_SIZE, MAX_PORT, MIN_PORT
 
 def raw_sha256(message):
     # Return the output of sha256 in bytes
     return sha256(message, encoder=RawEncoder)
 
-def client_port(port):
+def port(port):
     port = int(port)
-    if MIN_CLIENT_PORT <= port <= MAX_CLIENT_PORT:
+    if MIN_PORT <= port <= MAX_PORT:
         return port 
-    raise argparse.ArgumentTypeError(f"{MIN_CLIENT_PORT} <= port <= {MAX_CLIENT_PORT}")
-
-def server_port(port):
-    port = int(port)
-    if MIN_SERVER_PORT <= port <= MAX_SERVER_PORT:
-        return port 
-    raise argparse.ArgumentTypeError(f"{MIN_SERVER_PORT} <= port <= {MAX_SERVER_PORT}")
+    raise argparse.ArgumentTypeError(f"{MIN_PORT} <= port <= {MAX_PORT}")
 
 
 def sign_hash(message, signing_key, hash_function=raw_sha256):

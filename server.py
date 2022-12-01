@@ -9,8 +9,8 @@ from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
-from config import HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
-from utility import mac_send, recv_dec, recv_verify, server_port, verify
+from config import HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE, MAX_PORT
+from utility import mac_send, recv_dec, recv_verify, port, verify
 
 
 class Server:
@@ -71,41 +71,41 @@ class Server:
         sym_key = random(SESSION_KEY_SIZE)
         mac_send(conn, sym_key, self.signing_key, box)
 
-        # ip:port
-        self.clients[client_user] = f"{addr[0]}:{addr[1]}:"
+        # ip:port:socket:key
+        self.clients[client_user] = [addr[0], addr[1], conn, None]
 
         while True:
-            cmd = recv_dec(conn, sym_key).decode()
+            cmd = recv_dec(conn, sym_key)
 
             match cmd:
-                case 'g':
+                case b'g':
                     # client list
-                    msg = b"\n".join(self.get_clients())
+                    msg = bytes("\n".join(self.get_clients()), "utf-8")
                     mac_send(conn, msg, sym_key)
 
-                case 'p':
-                    # peer
-                    user = cmd
-
-                    if user not in self.clients:
-                        continue
-
-                    ip, port, key = self.clients[user].split(':')
-
-                    # session key
-                    self.send_key(conn, sym_key)
-
-                case _:
+                case b'':
                     conn.close()
                     del self.clients[client_user]
                     break
 
-    def send_key(self, socket, sym_key):
-        session_key = random(SESSION_KEY_SIZE)
-        mac_send(socket, session_key, sym_key)
+                case _:
+                    # peer
+                    user = cmd.decode()
+
+                    if user not in self.clients:
+                        continue
+
+                    sock = self.clients[user][2]
+
+                    # session key
+                    session_key = random(SESSION_KEY_SIZE)
+                    self.clients[client_user][3] = session_key
+                    mac_send(conn, session_key, sym_key)
+                    msg = bytes(f"{user}:{session_key}", "utf-8")
+                    mac_send(sock, msg, sym_key)
 
     def get_clients(self):
-        return [bytes(f"{name}:{val}", "utf-8") for name, val in self.clients.items()]
+        return [f"{name}:{val[0]}:{val[1]}" for name, val in self.clients.items()]
 
     def die(self):
         print("dying")
@@ -116,7 +116,7 @@ class Server:
 def main():
     parser = argparse.ArgumentParser("Client application")
     parser.add_argument(
-        "--port", type=server_port, default=8000, help="Port to run server on"
+        "--port", type=port, default=8000, help="Port to run server on"
     )
     args = parser.parse_args()
 

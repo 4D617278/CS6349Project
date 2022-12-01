@@ -8,11 +8,11 @@ from nacl.hash import sha256
 from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
-from config import HOST
-from utility import client_port, mac_send, recv_dec, server_port, sign_send
+from config import HOST, MAX_PORT
+from utility import port, mac_send, recv_dec, sign_send
 
 class Client:
-    def __init__(self, user, port):
+    def __init__(self, user):
         self.user = user
         # key used to decrypt messages
         self.private_key = PrivateKey(
@@ -35,49 +35,40 @@ class Client:
         self.peer = None
         self.server = None
 
-        self.msgs = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.msgs.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.msgs.bind((HOST, port))
-
     def start(self, host, port):
         args = (host, port)
         threading.Thread(target=self.shell).start()
         threading.Thread(target=self.login, args=args).start()
 
     def shell(self):
-        cmd = ""
-
-        while cmd != "q":
+        while True:
             cmd = input("> ")
 
             match cmd:
-                case "g":
-                   self.get_clients()  
                 case "c":
                    self.chat()  
+                case "g":
+                   self.get_clients()  
+                case "q":
+                    break
                 case _:
-                    print("Commands: g")
+                    print("Commands: ")
 
         self.die()
-
-    def get_msg():
-        self.msgs.listen()
-
-        while True:
-            conn, addr = self.msgs.accept()
-
-            if addr[0] != self.peer:
-                conn.close()
-                continue
-
-            # msg = conn.recv_dec(self.msgs, )
-
-            conn.close()
 
     def chat(self):
         user = input("Username: ")
 
+        if user not in self.clients:
+            print('No user {user}')
+            return
+
         ip, port, key = self.clients[user]
+
+        if not key:
+            key = self.get_key(user)
+
+        print(f'Key: {key}')
 
         self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -87,13 +78,12 @@ class Client:
             return
 
         msg = input("> ")
-        mac_send(self.peer, msg, key)
+        mac_send(self.peer, bytes(msg, "utf-8"), key)
 
 
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.connect((host, port))
-
         self.server.send(bytes(self.user, "utf-8"))
 
         # challenge
@@ -107,6 +97,20 @@ class Client:
         self.sym_key = recv_dec(self.server, self.verify_key, self.box)
 
         self.get_clients()
+        threading.Thread(target=self.get_keys).start()
+
+    def get_keys(self):
+        while True:
+            msg = recv_dec(self.server, self.sym_key)
+
+            if not msg:
+                continue
+
+            user, key = msg.decode().split(':')
+
+            if user in self.clients:
+                self.clients[user][2] = key
+                print(f'Key: {key}')
 
     def get_clients(self):
         mac_send(self.server, b'g', self.sym_key)
@@ -120,12 +124,22 @@ class Client:
         print(clients)
 
         for client in clients:
-            name, ip, port, key = client.split(':')
-            self.clients[name] = (ip, port, key)
+            name, ip, port = client.split(':')
+            self.clients[name] = [ip, port, None]
+
+    def get_key(self, user):
+        mac_send(self.server, bytes(user, "utf-8"), self.sym_key)
+        key = recv_dec(self.server, self.sym_key)
+
+        if not key:
+            print("Not logged in")
+            return
+
+        self.clients[user][2] = key
+
+        return key
 
     def die(self):
-        self.msgs.shutdown(1)
-        self.msgs.close()
         self.server.shutdown(1)
         self.server.close()
 
@@ -133,22 +147,16 @@ def main():
     parser = argparse.ArgumentParser("Client application")
     parser.add_argument("--host", default="localhost", help="Location of server")
     parser.add_argument(
-        "--server_port",
-        type=server_port,
+        "--port",
+        type=port,
         default=8000,
         help="Port that server is running on",
-    )
-    parser.add_argument(
-        "--client_port",
-        type=client_port,
-        default=32768,
-        help="Port that client is running on",
     )
     parser.add_argument("user", help="Name of the user logging in")
     args = parser.parse_args()
 
-    c = Client(args.user, args.client_port)
-    c.start(args.host, args.server_port)
+    c = Client(args.user)
+    c.start(args.host, args.port)
 
 if __name__ == "__main__":
     main()
