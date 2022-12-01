@@ -5,7 +5,7 @@ from nacl.utils import random
 from nacl.encoding import RawEncoder
 from nacl.signing import SignedMessage
 
-from config import SIGNATURE_SIZE, HASH_OUTPUT_SIZE
+from config import SIGNATURE_SIZE, HASH_OUTPUT_SIZE, MAX_DATA_SIZE
 
 MIN_SERVER_PORT = 0
 MAX_SERVER_PORT = 32767
@@ -43,7 +43,6 @@ def encrypt_and_sign(message, box, signing_key, hash_function=raw_sha256):
     encrypted_message = box.encrypt(message)
     print(f"Encrypted message: {encrypted_message} of length {len(encrypted_message)}")
     hashed_message, signature = sign_hash(encrypted_message, signing_key, hash_function)
-    print(f"Hashed message: {hashed_message} of length {len(hashed_message)}")
     print(f"Signature: {signature} of length {len(signature)}")
     return hashed_message + signature + encrypted_message
 
@@ -73,6 +72,10 @@ def decrypt_and_verify(message, box, verify_key, hash_function=raw_sha256):
     decrypted_message = box.decrypt(encrypted_message)
     print(f"Decrypted message: {decrypted_message} of length {len(decrypted_message)}")
     return decrypted_message
+
+def recv_decrypt(sock, box, verify_key):
+    message = sock.recv(MAX_DATA_SIZE)
+    return decrypt_and_verify(message, box, verify_key)
 
 
 def xor(bytes1, bytes2):

@@ -9,7 +9,7 @@ from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
 from config import CLIENT_PORT, HOST, METADATA_SIZE, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
-from utility import client_port, decrypt_and_verify, encrypt_and_sign, server_port, sign_hash
+from utility import client_port, encrypt_and_sign, recv_decrypt, server_port, sign_hash
 
 class Client:
     def __init__(self, user, port):
@@ -64,9 +64,8 @@ class Client:
         s.send(bytes(self.user, "utf-8"))
 
         # challenge
-        message = s.recv(MAX_DATA_SIZE)
         print("Received challenge from server")
-        decrypted_nonce = decrypt_and_verify(message, box, self.verify_key)
+        decrypted_nonce = recv_decrypt(s, box, self.verify_key)
 
         # response
         message, signature = sign_hash(decrypted_nonce, self.signing_key)
@@ -99,9 +98,8 @@ class Client:
         s.send(enc)
 
         # session key
-        message = s.recv(MAX_DATA_SIZE)
-        session_key = decrypt_and_verify(message, box, self.verify_key)
-        self.peer = address
+        session_key = recv_decrypt(s, box, self.verify_key)
+        self.peer = name_to_ip[name]
         self.keys[address] = session_key
 
     def die(self):
