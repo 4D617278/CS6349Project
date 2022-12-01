@@ -103,7 +103,7 @@ class Server:
                     ip, port, _ = self.clients[user]
                     keySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     keySock.connect((ip, (port + 1) % MAX_PORT))
-                    msg = bytes(f"{user}:{session_key}", "utf-8")
+                    msg = bytes(f"{client_user}:{session_key}", "utf-8")
                     mac_send(keySock, msg, sym_key)
 
     def get_clients(self):

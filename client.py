@@ -132,7 +132,6 @@ class Client:
             return
 
         clients = client_list.decode().split('\n')
-        print(clients)
 
         for client in clients:
             name, ip, port = client.split(':')
@@ -142,6 +141,8 @@ class Client:
                 self.clients[name][1] = port
             else:
                 self.clients[name] = [ip, port, None]
+
+        print(self.clients)
 
     def get_key(self, user):
         mac_send(self.server, bytes(user, "utf-8"), self.sym_key)
