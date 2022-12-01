@@ -48,10 +48,11 @@ def encrypt_and_sign(message, box, signing_key, hash_function=raw_sha256):
 
 
 def mac(msg, sym_key, hash_function=raw_sha256):
-    enc = keyed_hash_encryption(sym_key, msg)
+    nonce = random(HASH_OUTPUT_SIZE)
+    enc = keyed_hash_encryption(sym_key, nonce, msg)
     hash = hash_function(enc)
-    mac = keyed_hash_encryption(sym_key, hash)
-    return mac + enc
+    mac = keyed_hash_encryption(sym_key, nonce, hash)
+    return nonce + mac + enc
 
 
 def get_hash_signature_message(message):
@@ -72,11 +73,16 @@ def verify(message, hashed_message, signature, verify_key, hash_function=raw_sha
 
 
 def verify_dec(msg, sym_key, hash_function=raw_sha256):
-    hash = keyed_hash_decryption(sym_key, msg[:HASH_OUTPUT_SIZE])
-    enc = msg[HASH_OUTPUT_SIZE:]
-    assert hash == hash_function(enc)
-    msg = keyed_hash_decryption(sym_key, enc)
-    return msg
+    nonce = msg[:HASH_OUTPUT_SIZE]
+    msg = msg[HASH_OUTPUT_SIZE:]
+
+    mac = msg[:HASH_OUTPUT_SIZE]
+    msg = msg[HASH_OUTPUT_SIZE:]
+
+    hash = keyed_hash_decryption(sym_key, nonce, mac)
+    assert hash == hash_function(msg)
+
+    return keyed_hash_decryption(sym_key, nonce, msg)
 
 
 def decrypt_and_verify(message, box, verify_key, hash_function=raw_sha256):
@@ -94,13 +100,11 @@ def mac_send(sock, msg, key, box=None):
         enc = encrypt_and_sign(msg, box, key)
     else:
         enc = mac(msg, key)
-        print(f'Enc: {enc}')
     sock.send(enc)
 
 
 def recv_dec(sock, key, box=None):
     msg = sock.recv(MAX_DATA_SIZE)
-    print(f'Msg: {msg}')
     if box:
         return decrypt_and_verify(msg, box, key)
     else:
@@ -151,13 +155,12 @@ def hmac(key, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256):
 
 
 def keyed_hash_encryption(
-    key, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256
+    key, iv, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256
 ):
     """Encryption using HMAC-256 keystream in cipher feedback mode"""
+    assert len(iv) == HASH_OUTPUT_SIZE:
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
-    # TODO: use nonce
-    iv = hash_function(key)
     output = key_byte_arr
     encrypted = bytearray()
     prev_enc = iv
@@ -177,14 +180,12 @@ def keyed_hash_encryption(
 
 
 def keyed_hash_decryption(
-    key, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256
+    key, iv, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256
 ):
     """Decryption using HMAC-256 keystream in cipher feedback mode"""
-    #return keyed_hash_encryption(key, message)
+    assert len(iv) == HASH_OUTPUT_SIZE:
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
-    # TODO: use nonce
-    iv = hash_function(key)
     output = key_byte_arr
     decrypted = bytearray()
     prev_dec = iv
@@ -202,14 +203,15 @@ def keyed_hash_decryption(
 
 if __name__ == "__main__":
     secret_key = random(32)
+    nonce = random(32)
     # message = b"A" * 64
     message = random(int.from_bytes(random(1), 'little'))
     print(f"Plaintext: {message}")
     print("*" * 20)
-    enc = keyed_hash_encryption(secret_key, message)
+    enc = keyed_hash_encryption(secret_key, nonce, message)
     print(f"Encrypted: {enc}")
     print("*" * 20)
-    dec = keyed_hash_decryption(secret_key, enc)
+    dec = keyed_hash_decryption(secret_key, nonce, enc)
     print(f"Decrypted: {dec}")
 
     if (message == dec):
