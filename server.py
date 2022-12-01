@@ -71,8 +71,8 @@ class Server:
         sym_key = random(SESSION_KEY_SIZE)
         mac_send(conn, sym_key, self.signing_key, box)
 
-        # ip:port:socket:key
-        self.clients[client_user] = [addr[0], addr[1], conn, None]
+        # ip:port:key
+        self.clients[client_user] = [addr[0], addr[1], None]
 
         while True:
             cmd = recv_dec(conn, sym_key)
@@ -95,14 +95,16 @@ class Server:
                     if user not in self.clients:
                         continue
 
-                    sock = self.clients[user][2]
-
                     # session key
                     session_key = random(SESSION_KEY_SIZE)
-                    self.clients[client_user][3] = session_key
+                    self.clients[client_user][2] = session_key
                     mac_send(conn, session_key, sym_key)
+
+                    ip, port, _ = self.clients[user]
+                    keySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    keySock.connect((ip, (port + 1) % MAX_PORT))
                     msg = bytes(f"{user}:{session_key}", "utf-8")
-                    mac_send(sock, msg, sym_key)
+                    mac_send(keySock, msg, sym_key)
 
     def get_clients(self):
         return [f"{name}:{val[0]}:{val[1]}" for name, val in self.clients.items()]

@@ -84,6 +84,8 @@ class Client:
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.connect((host, port))
+        threading.Thread(target=self.get_keys).start()
+
         self.server.send(bytes(self.user, "utf-8"))
 
         # challenge
@@ -97,14 +99,23 @@ class Client:
         self.sym_key = recv_dec(self.server, self.verify_key, self.box)
 
         self.get_clients()
-        threading.Thread(target=self.get_keys).start()
 
     def get_keys(self):
+        self.keySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.keySock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        port = (self.server.getsockname()[1] + 1) % MAX_PORT
+        self.keySock.bind((HOST, port))
+        self.keySock.listen()
+
         while True:
-            msg = recv_dec(self.server, self.sym_key)
+            conn, addr = self.keySock.accept()
+
+            msg = recv_dec(conn, self.sym_key)
 
             if not msg:
                 continue
+
+            print(f'Msg: {msg}')
 
             user, key = msg.decode().split(':')
 
