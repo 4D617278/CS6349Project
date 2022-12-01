@@ -10,7 +10,7 @@ from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
 from config import CLIENT_PORT, HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
-from utility import decrypt_and_verify, server_port, encrypt_and_sign, get_signature_and_message
+from utility import decrypt_and_verify, server_port, encrypt_and_sign, verify, get_hash_signature_message
 
 
 class Server:
@@ -65,9 +65,9 @@ class Server:
         # response
         message = conn.recv(MAX_DATA_SIZE)
         print("Received response from client")
-        signed_message, decrypted_nonce = get_signature_and_message(message)
+        hashed_message, signature, decrypted_nonce = get_hash_signature_message(message)
 
-        verify_key.verify(signed_message)
+        verify(decrypted_nonce, hashed_message, signature, verify_key)
         if nonce == decrypted_nonce:
             print(f"Client {client_user} authenticated successfully")
         else:
