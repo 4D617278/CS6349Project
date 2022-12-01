@@ -31,6 +31,7 @@ class Client:
             open("./key_pairs/server_dsa.pub", encoding="utf-8").read(), HexEncoder
         )
         self.keys = {}
+        self.peer = None
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.s.bind((HOST, port))
@@ -43,15 +44,12 @@ class Client:
     def chat(self):
         self.s.listen()
 
-        while len(self.keys) > 0:
+        while True:
             conn, addr = self.s.accept()
 
-            if addr[0] not in self.keys:
+            if addr[0] != self.peer:
                 conn.close()
                 continue
-
-            key = self.keys[addr[0]]
-            users.remove(addr[0])
 
             msg = conn.recv(MAX_DATA_SIZE)
 
@@ -103,9 +101,8 @@ class Client:
         # session key
         message = s.recv(MAX_DATA_SIZE)
         session_key = decrypt_and_verify(message, box, self.verify_key)
-        self.keys[name] = session_key
-
-        print(f"Future communication uses session key {session_key}")
+        self.peer = address
+        self.keys[address] = session_key
 
     def die(self):
         self.s.shutdown(1)
