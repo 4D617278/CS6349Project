@@ -63,10 +63,8 @@ class Client:
             print('No user {user}')
             return
 
-        ip, port, key = self.clients[user]
-
-        if not key:
-            key = self.get_key(user)
+        ip, port, _ = self.clients[user]
+        key = self.get_key(user)
 
         print(f'Key: {key}')
 
