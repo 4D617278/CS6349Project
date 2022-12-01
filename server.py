@@ -9,8 +9,8 @@ from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
-from config import HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
-from utility import allowed_ports, encrypt_and_sign, get_signature_and_message
+from config import CLIENT_PORT, HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
+from utility import decrypt_and_verify, server_port, encrypt_and_sign, get_signature_and_message
 
 
 class Server:
@@ -78,9 +78,7 @@ class Server:
         self.clients[client_user] = ip
 
         # session key
-        session_key = random(SESSION_KEY_SIZE)
-        signed_message = encrypt_and_sign(session_key, box, self.signing_key)
-        conn.send(signed_message)
+        self.send_key(box, conn)
 
         clients = self.get_clients()
         print(f"List of available clients: {clients}")
@@ -88,7 +86,24 @@ class Server:
         print("clients:", clients)
         conn.send(message)
 
-        conn.close()
+        user = None
+        while user not in self.clients:
+            enc = conn.recv(MAX_USERNAME_LEN)
+            user = decrypt_and_verify(enc, box, verify_key)
+
+        ip = self.clients[user]
+        port = CLIENT_PORT
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((ip, port))
+        self.send_key(sock)
+
+        # conn.close()
+
+    def send_key(self, box, socket):
+        session_key = random(SESSION_KEY_SIZE)
+        signed_message = encrypt_and_sign(session_key, box, self.signing_key)
+        socket.send(signed_message)
 
     def get_clients(self):
         return [bytes(f"{name}:{addr}", "utf-8") for name, addr in self.clients.items()]
@@ -102,7 +117,7 @@ class Server:
 def main():
     parser = argparse.ArgumentParser("Client application")
     parser.add_argument(
-        "--port", type=allowed_ports, default=8000, help="Port to run server on"
+        "--port", type=server_port, default=8000, help="Port to run server on"
     )
     args = parser.parse_args()
 
