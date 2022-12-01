@@ -9,7 +9,7 @@ from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
 from config import HOST
-from utility import client_port, mac_send, recv_decrypt, server_port, sign_send
+from utility import client_port, mac_send, recv_dec, server_port, sign_send
 
 class Client:
     def __init__(self, user, port):
@@ -30,7 +30,6 @@ class Client:
         self.verify_key = VerifyKey(
             open("./key_pairs/server_dsa.pub", encoding="utf-8").read(), HexEncoder
         )
-        self.auth = 0
         self.box = Box(self.private_key, self.server_public_key)
         self.clients = {}
         self.peer = None
@@ -69,7 +68,7 @@ class Client:
                 conn.close()
                 continue
 
-            # msg = conn.recv_decrypt(self.msgs, )
+            # msg = conn.recv_dec(self.msgs, )
 
             conn.close()
 
@@ -81,25 +80,26 @@ class Client:
 
         # challenge
         print("Received challenge from server")
-        decrypted_nonce = recv_decrypt(self.server, self.box, self.verify_key)
+        decrypted_nonce = recv_dec(self.server, self.verify_key, self.box)
 
         # response
         sign_send(self.server, decrypted_nonce, self.signing_key)
 
+        # server sym key
+        self.sym_key = recv_dec(self.server, self.verify_key, self.box)
+
         self.get_clients()
 
     def get_clients(self):
-        mac_send(self.server, b'g', self.box, self.signing_key)
-        client_list = recv_decrypt(self.server, self.box, self.verify_key)
+        mac_send(self.server, b'g', self.sym_key)
+        client_list = recv_dec(self.server, self.sym_key)
 
         if not client_list:
-            self.auth = 0
             print("Not logged in")
             return
 
-        self.auth = 1
-
         clients = client_list.decode().split('\n')
+        print(clients)
 
         for client in clients:
             name, ip, port, key = client.split(':')

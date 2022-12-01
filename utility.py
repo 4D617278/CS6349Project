@@ -47,6 +47,13 @@ def encrypt_and_sign(message, box, signing_key, hash_function=raw_sha256):
     return hashed_message + signature + encrypted_message
 
 
+def mac(msg, sym_key, hash_function=raw_sha256):
+    enc = keyed_hash_encryption(sym_key, msg)
+    hash = hash_function(enc)
+    mac = keyed_hash_encryption(sym_key, hash)
+    return mac + enc
+
+
 def get_hash_signature_message(message):
     """Split the message into the signed hash and the encrypted message"""
     hashed_message, signature, encrypted_message = (
@@ -64,6 +71,14 @@ def verify(message, hashed_message, signature, verify_key, hash_function=raw_sha
     verify_key.verify(hashed_message, signature)
 
 
+def verify_dec(msg, sym_key, hash_function=raw_sha256):
+    hash = keyed_hash_decryption(sym_key, msg[:HASH_OUTPUT_SIZE])
+    enc = msg[HASH_OUTPUT_SIZE:]
+    assert hash == hash_function(enc)
+    msg = keyed_hash_decryption(sym_key, enc)
+    return msg
+
+
 def decrypt_and_verify(message, box, verify_key, hash_function=raw_sha256):
     """Decrypt the message using box and verify the hash using verify_key"""
     hashed_message, signature, encrypted_message = get_hash_signature_message(message)
@@ -74,14 +89,22 @@ def decrypt_and_verify(message, box, verify_key, hash_function=raw_sha256):
     return decrypted_message
 
 
-def mac_send(sock, msg, box, sign_key):
-    enc = encrypt_and_sign(msg, box, sign_key)
+def mac_send(sock, msg, key, box=None):
+    if box:
+        enc = encrypt_and_sign(msg, box, key)
+    else:
+        enc = mac(msg, key)
+        print(f'Enc: {enc}')
     sock.send(enc)
 
 
-def recv_decrypt(sock, box, verify_key):
+def recv_dec(sock, key, box=None):
     msg = sock.recv(MAX_DATA_SIZE)
-    return decrypt_and_verify(msg, box, verify_key)
+    print(f'Msg: {msg}')
+    if box:
+        return decrypt_and_verify(msg, box, key)
+    else:
+        return verify_dec(msg, key)
 
 
 def recv_verify(sock, verify_key):
@@ -101,10 +124,11 @@ def xor(bytes1, bytes2):
     return bytes(x ^ y for (x, y) in zip(bytes1, bytes2))
 
 
-def pad(key, block_size=64):
+def pad(data, block_size=64):
     """Pad key with 0's until block_size"""
-    padding = bytearray(block_size - len(key))
-    return key + padding
+    #padding = bytearray(block_size - len(key))
+    padding = bytearray(block_size - len(data) % block_size)
+    return data + padding
 
 
 def compute_block_sized_key(key, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256):
@@ -132,11 +156,15 @@ def keyed_hash_encryption(
     """Encryption using HMAC-256 keystream in cipher feedback mode"""
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
+    # TODO: use nonce
     iv = hash_function(key)
     output = key_byte_arr
     encrypted = bytearray()
     prev_enc = iv
+
     # TODO: pad the message to a multiple of block_size
+    #message_byte_arr = pad(message_byte_arr)
+
     for i in range(0, len(message_byte_arr), HASH_OUTPUT_SIZE):
         block = message_byte_arr[i : i + HASH_OUTPUT_SIZE]
         # O(i) = HMAC(IV, C(i-1))
@@ -145,19 +173,22 @@ def keyed_hash_encryption(
         enc = xor(block, output)
         prev_enc = enc
         encrypted += enc
-    return encrypted
+    return bytes(encrypted)
 
 
 def keyed_hash_decryption(
     key, message, block_size=HASH_OUTPUT_SIZE, hash_function=raw_sha256
 ):
     """Decryption using HMAC-256 keystream in cipher feedback mode"""
+    #return keyed_hash_encryption(key, message)
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
+    # TODO: use nonce
     iv = hash_function(key)
     output = key_byte_arr
     decrypted = bytearray()
     prev_dec = iv
+
     for i in range(0, len(message_byte_arr), HASH_OUTPUT_SIZE):
         block = message_byte_arr[i : i + HASH_OUTPUT_SIZE]
         # O(i) = HMAC(IV, P(i-1))
@@ -166,13 +197,13 @@ def keyed_hash_decryption(
         dec = xor(block, output)
         prev_dec = block
         decrypted += dec
-    return decrypted
+    return bytes(decrypted)
 
 
 if __name__ == "__main__":
     secret_key = random(32)
     # message = b"A" * 64
-    message = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Lacus sed viverra tellus in hac habitasse platea. Pulvinar pellentesque habitant morbi tristique senectus et netus. Aenean vel elit scelerisque mauris pellentesque. Iaculis eu non diam phasellus vestibulum lorem sed."
+    message = random(int.from_bytes(random(1), 'little'))
     print(f"Plaintext: {message}")
     print("*" * 20)
     enc = keyed_hash_encryption(secret_key, message)
@@ -180,3 +211,6 @@ if __name__ == "__main__":
     print("*" * 20)
     dec = keyed_hash_decryption(secret_key, enc)
     print(f"Decrypted: {dec}")
+
+    if (message == dec):
+        print('Good')

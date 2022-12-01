@@ -10,7 +10,7 @@ from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
 from config import HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, SIGNATURE_SIZE, MAX_DATA_SIZE
-from utility import mac_send, recv_decrypt, recv_verify, server_port, verify
+from utility import mac_send, recv_dec, recv_verify, server_port, verify
 
 
 class Server:
@@ -57,7 +57,7 @@ class Server:
         nonce = random(Box.NONCE_SIZE)
 
         # challenge
-        mac_send(conn, nonce, box, self.signing_key)
+        mac_send(conn, nonce, self.signing_key, box)
 
         # response
         decrypted_nonce = recv_verify(conn, verify_key)
@@ -68,18 +68,24 @@ class Server:
             print(f"Failed login from client {client_user}")
             conn.close()
 
+        sym_key = random(SESSION_KEY_SIZE)
+        mac_send(conn, sym_key, self.signing_key, box)
+
         # ip:port
-        session_key = random(SESSION_KEY_SIZE)
-        self.clients[client_user] = f"{addr[0]}:{addr[1]}:{session_key}"
+        self.clients[client_user] = f"{addr[0]}:{addr[1]}:"
 
         while True:
-            cmd = recv_decrypt(conn, box, verify_key).decode()
+            cmd = recv_dec(conn, sym_key).decode()
 
             match cmd:
                 case 'g':
                     # client list
                     msg = b"\n".join(self.get_clients())
-                    mac_send(conn, msg, box, self.signing_key)
+                    mac_send(conn, msg, sym_key)
+
+                case 'q':
+                    conn.close()
+                    break
 
                 case _:
                     # peer
@@ -91,12 +97,11 @@ class Server:
                     ip, port, key = self.clients[user].split(':')
 
                     # session key
-                    self.send_key(box, conn)
+                    self.send_key(conn, sym_key)
 
-        conn.close()
-
-    def send_key(self, box, socket):
-        mac_send(socket, session_key, box, self.signing_key)
+    def send_key(self, socket, sym_key):
+        session_key = random(SESSION_KEY_SIZE)
+        mac_send(socket, session_key, sym_key)
 
     def get_clients(self):
         return [bytes(f"{name}:{val}", "utf-8") for name, val in self.clients.items()]
