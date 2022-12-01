@@ -136,8 +136,12 @@ class Client:
 
         for client in clients:
             name, ip, port = client.split(':')
-            self.clients[name][0] = ip
-            self.clients[name][1] = port
+
+            if name in self.clients:
+                self.clients[name][0] = ip
+                self.clients[name][1] = port
+            else:
+                self.clients = [ip, port, None]
 
     def get_key(self, user):
         mac_send(self.server, bytes(user, "utf-8"), self.sym_key)
