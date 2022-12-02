@@ -72,7 +72,7 @@ class Server:
         mac_send(conn, sym_key, self.signing_key, box)
 
         # ip:port:key
-        self.clients[client_user] = [addr[0], addr[1]]
+        self.clients[client_user] = [addr[0], addr[1], sym_key]
 
         while True:
             cmd = recv_dec(conn, sym_key)
@@ -98,16 +98,16 @@ class Server:
                     session_key = random(SESSION_KEY_SIZE)
 
                     # connect to peer's current port + 1
-                    ip, port = self.clients[user]
+                    ip, port, peer_key = self.clients[user]
                     keySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     keySock.connect((ip, (port + 1) % MAX_PORT))
 
                     # send session key to peer
                     msg = bytes(f"{client_user}:{session_key}", "utf-8")
-                    mac_send(keySock, msg, sym_key)
+                    mac_send(keySock, msg, peer_key)
 
                     # get listen port from peer
-                    msg = recv_dec(keySock, sym_key)
+                    msg = recv_dec(keySock, peer_key)
                     
                     if msg == b'0':
                         keySock.close() 
