@@ -29,7 +29,7 @@ def create_key(username):
 
 def main():
     parser = argparse.ArgumentParser("Generate keys for client and server")
-    parser.add_argument("--users", nargs="+", help="List of users to create keys for")
+    parser.add_argument("users", nargs="+", help="List of users to create keys for")
     parser.add_argument("--create-server", action="store_true", help="Create key for server")
     args = parser.parse_args()
 
