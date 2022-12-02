@@ -86,6 +86,8 @@ class Client:
 
             mac_send(self.peer, bytes(msg, "utf-8"), key)
 
+        self.peer.close()
+
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.connect((host, port))
