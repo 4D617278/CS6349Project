@@ -107,15 +107,16 @@ class Server:
                     mac_send(keySock, msg, sym_key)
 
                     # get listen port from peer
-                    port = recv_dec(keySock, sym_key)
+                    msg = recv_dec(keySock, sym_key)
                     
-                    if not port:
+                    if msg == b'0':
+                        keySock.close() 
                         continue
 
-                    print(f'Port: {port}')
+                    print(f'Port: {msg.decode()}')
 
                     # send port and session_key to client
-                    mac_send(conn, port, sym_key)
+                    mac_send(conn, msg, sym_key)
                     mac_send(conn, session_key, sym_key)
 
     def get_clients(self):

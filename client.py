@@ -30,9 +30,11 @@ class Client:
         self.verify_key = VerifyKey(
             open("./key_pairs/server_dsa.pub", encoding="utf-8").read(), HexEncoder
         )
-        self.box = Box(self.private_key, self.server_public_key)
         self.clients = {}
-        self.peer = None
+        self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.peer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.peer_name = ""
+        self.peer_key = None
         self.server = None
 
     def start(self, host, port):
@@ -46,9 +48,11 @@ class Client:
 
             match cmd:
                 case "c":
-                   self.chat()  
+                    self.chat(self.peer, self.peer_name, self.peer_key)
                 case "g":
                    self.get_clients()  
+                case "p":
+                    self.peer_connect()
                 case "q":
                     break
                 case _:
@@ -56,21 +60,19 @@ class Client:
 
         self.die()
 
-    def chat(self):
+    def peer_connect(self):
         user = input("Username: ")
 
         if user not in self.clients:
             print(f"No user {user}")
             return
 
+        self.peer_name = user
+
         ip = self.clients[user][0]
         key, port = self.get_key(user)
 
-        print(f"Key: {key}")
-
-        self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        print(f"IP: {ip}, Port: {port}")
+        self.peer_key = key
 
         try:
             self.peer.connect((ip, int(port)))
@@ -78,9 +80,10 @@ class Client:
             print(f"{user} is busy")
             return
 
-        args = (self.peer, user, key)
+    def chat(self, peer, user, key):
+        args = (peer, user, key)
         threading.Thread(target=self.recv_msgs, args=args).start()
-        self.send_msgs(self.peer, user, key)
+        self.send_msgs(peer, user, key)
 
     def recv_msgs(self, sock, user, key):
         while True:
@@ -90,6 +93,7 @@ class Client:
                 break
 
             print(f'{user}: {msg.decode()}')
+            print(f'{self.user}:')
 
     def send_msgs(self, sock, user, key):
         while True:
@@ -105,26 +109,27 @@ class Client:
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.connect((host, port))
-        threading.Thread(target=self.get_keys).start()
+        port = (self.server.getsockname()[1] + 1) % MAX_PORT
+        threading.Thread(target=self.get_keys, args=(port,)).start()
 
         self.server.send(bytes(self.user, "utf-8"))
 
         # challenge
         print("Received challenge from server")
-        decrypted_nonce = recv_dec(self.server, self.verify_key, self.box)
+        box = Box(self.private_key, self.server_public_key)
+        decrypted_nonce = recv_dec(self.server, self.verify_key, box)
 
         # response
         sign_send(self.server, decrypted_nonce, self.signing_key)
 
         # server sym key
-        self.sym_key = recv_dec(self.server, self.verify_key, self.box)
+        self.sym_key = recv_dec(self.server, self.verify_key, box)
 
         self.get_clients()
 
-    def get_keys(self):
+    def get_keys(self, port):
         self.keySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.keySock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        port = (self.server.getsockname()[1] + 1) % MAX_PORT
         self.keySock.bind((HOST, port))
         self.keySock.listen()
 
@@ -144,25 +149,28 @@ class Client:
                 self.clients[user][2] = key
                 print(f'Key: {key}')
 
-            self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            ans = input(f'Chat with {user}? ')
+
+            print(f'Ans: {ans}')
+
+            if ans != 'y':
+                mac_send(conn, b'0', self.sym_key)
+                continue
+
+            self.peer_key = bytes(key, "utf-8")
+            self.peer_name = user
 
             for port in range(MIN_PORT, MAX_PORT + 1):
                 try:
                     self.peer.bind((HOST, port))
-                    print(f'Port: {port}')
                     break
                 except OSError:
                     continue
 
             self.peer.listen()
-
             msg = bytes(str(port), "utf-8")
             mac_send(conn, msg, self.sym_key)
-            peer, addr = self.peer.accept()
-
-            args = (peer, user, self.sym_key)
-            threading.Thread(target=self.recv_msgs, args=args).start()
-            self.send_msgs(peer, user, self.sym_key)
+            self.peer, _ = self.peer.accept()
 
     def get_clients(self):
         mac_send(self.server, b'g', self.sym_key)
