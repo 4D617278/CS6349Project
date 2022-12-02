@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 import argparse
-import curses
 import socket
 import threading
-from time import sleep
 from nacl.encoding import HexEncoder 
-from nacl.hash import sha256 
 from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
@@ -134,7 +131,6 @@ class Client:
         self.server.send(bytes(self.user, "utf-8"))
 
         # challenge
-        print("Received challenge from server")
         box = Box(self.private_key, self.server_public_key)
         decrypted_nonce = recv_dec(self.server, self.verify_key, box)
 
