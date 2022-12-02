@@ -51,7 +51,7 @@ class Client:
                 case "c":
                     self.chat(self.peer, self.peer_name, self.peer_key)
                 case "g":
-                   self.get_clients()  
+                    self.get_clients()
                 case "p":
                     self.peer_connect()
                 case "q":
@@ -190,6 +190,9 @@ class Client:
             msg = bytes(str(port), "utf-8")
             mac_send(conn, msg, self.sym_key)
             self.peer, _ = self.peer.accept()
+
+    def getpeername(self):
+        return self.peer_name
 
     def get_clients(self):
         mac_send(self.server, b'g', self.sym_key)
