@@ -70,8 +70,6 @@ class Client:
 
         self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        msg = input(f"{user}> ")
-
         print(f'IP: {ip}, Port: {port}')
 
         try:
@@ -80,8 +78,13 @@ class Client:
             print(f'{user} is busy')
             return
 
-        mac_send(self.peer, bytes(msg, "utf-8"), key)
+        while True:
+            msg = input(f"{user}> ")
 
+            if not msg:
+                break
+
+            mac_send(self.peer, bytes(msg, "utf-8"), key)
 
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -117,6 +120,8 @@ class Client:
             if not msg:
                 continue
 
+            print(f'Msg: {msg}')
+
             user, key = msg.decode().split(':')
 
             if user in self.clients:
@@ -138,8 +143,10 @@ class Client:
             msg = bytes(str(port), "utf-8")
             mac_send(conn, msg, self.sym_key)
             peer_conn, addr = self.peer.accept()
-            msg = recv_dec(peer_conn, self.sym_key)
-            print(f'Msg: {msg}')
+
+            while msg:
+                msg = recv_dec(peer_conn, self.sym_key)
+                print(f'Msg: {msg}')
 
     def get_clients(self):
         mac_send(self.server, b'g', self.sym_key)
