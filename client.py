@@ -60,33 +60,47 @@ class Client:
         user = input("Username: ")
 
         if user not in self.clients:
-            print('No user {user}')
+            print(f"No user {user}")
             return
 
         ip = self.clients[user][0]
         key, port = self.get_key(user)
 
-        print(f'Key: {key}')
+        print(f"Key: {key}")
 
         self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        print(f'IP: {ip}, Port: {port}')
+        print(f"IP: {ip}, Port: {port}")
 
         try:
             self.peer.connect((ip, int(port)))
         except ConnectionRefusedError:
-            print(f'{user} is busy')
+            print(f"{user} is busy")
             return
 
+        args = (self.peer, user, key)
+        threading.Thread(target=self.recv_msgs, args=args).start()
+        self.send_msgs(self.peer, user, key)
+
+    def recv_msgs(self, sock, user, key):
         while True:
-            msg = input(f"{user}> ")
+            msg = recv_dec(sock, key)
 
             if not msg:
                 break
 
-            mac_send(self.peer, bytes(msg, "utf-8"), key)
+            print(f'{user}: {msg.decode()}')
 
-        self.peer.close()
+    def send_msgs(self, sock, user, key):
+        while True:
+            msg = input(f"{self.user}: ")
+
+            if not msg:
+                break
+
+            mac_send(sock, bytes(msg, "utf-8"), key)
+
+        sock.close()
 
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -144,11 +158,11 @@ class Client:
 
             msg = bytes(str(port), "utf-8")
             mac_send(conn, msg, self.sym_key)
-            peer_conn, addr = self.peer.accept()
+            peer, addr = self.peer.accept()
 
-            while msg:
-                msg = recv_dec(peer_conn, self.sym_key)
-                print(f'Msg: {msg}')
+            args = (peer, user, self.sym_key)
+            threading.Thread(target=self.recv_msgs, args=args).start()
+            self.send_msgs(peer, user, self.sym_key)
 
     def get_clients(self):
         mac_send(self.server, b'g', self.sym_key)
