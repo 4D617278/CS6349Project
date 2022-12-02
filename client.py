@@ -124,7 +124,7 @@ class Client:
 
             print(f'Msg: {msg}')
 
-            user, key = msg.decode().split(':')
+            user, key = msg.decode().split(':', 1)
 
             if user in self.clients:
                 self.clients[user][2] = key
