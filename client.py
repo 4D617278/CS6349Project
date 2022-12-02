@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import curses
 import socket
 import threading
 from time import sleep
@@ -56,7 +57,7 @@ class Client:
                 case "q":
                     break
                 case _:
-                    print("Commands: ")
+                    print("Commands: c, g, p, q")
 
         self.die()
 
@@ -72,6 +73,13 @@ class Client:
         ip = self.clients[user][0]
         key, port = self.get_key(user)
 
+        if not key or not port:
+            print(f"{user} is busy")
+            return
+
+        self.peer.close()
+        self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.peer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.peer_key = key
 
         try:
@@ -81,19 +89,27 @@ class Client:
             return
 
     def chat(self, peer, user, key):
+        try:
+            peer.getpeername()
+        except OSError:
+            print('No peer is set')
+            return
+
         args = (peer, user, key)
         threading.Thread(target=self.recv_msgs, args=args).start()
         self.send_msgs(peer, user, key)
 
     def recv_msgs(self, sock, user, key):
         while True:
-            msg = recv_dec(sock, key)
+            try:
+                msg = recv_dec(sock, key)
+            except OSError:
+                break
 
             if not msg:
                 break
 
             print(f'{user}: {msg.decode()}')
-            print(f'{self.user}:')
 
     def send_msgs(self, sock, user, key):
         while True:
@@ -102,7 +118,10 @@ class Client:
             if not msg:
                 break
 
-            mac_send(sock, bytes(msg, "utf-8"), key)
+            try:
+                mac_send(sock, bytes(msg, "utf-8"), key)
+            except BrokenPipeError:
+                break
 
         sock.close()
 
@@ -147,16 +166,16 @@ class Client:
 
             if user in self.clients:
                 self.clients[user][2] = key
-                print(f'Key: {key}')
 
             ans = input(f'Chat with {user}? ')
-
-            print(f'Ans: {ans}')
 
             if ans != 'y':
                 mac_send(conn, b'0', self.sym_key)
                 continue
 
+            self.peer.close()
+            self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.peer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.peer_key = bytes(key, "utf-8")
             self.peer_name = user
 
@@ -199,13 +218,10 @@ class Client:
         key = recv_dec(self.server, self.sym_key)
 
         if not key or not port:
-            print("Not logged in")
-            return
+            return key, port
 
         self.clients[user][2] = key
         port = port.decode()
-
-        print(f'Port: {port}')
 
         return key, port
 
