@@ -72,7 +72,7 @@ class Server:
         mac_send(conn, sym_key, self.signing_key, box)
 
         # ip:port:key
-        self.clients[client_user] = [addr[0], addr[1], None]
+        self.clients[client_user] = [addr[0], addr[1]]
 
         while True:
             cmd = recv_dec(conn, sym_key)
@@ -89,22 +89,34 @@ class Server:
                     break
 
                 case _:
-                    # peer
+                    # start session
                     user = cmd.decode()
 
                     if user not in self.clients:
                         continue
 
-                    # session key
                     session_key = random(SESSION_KEY_SIZE)
-                    self.clients[client_user][2] = session_key
-                    mac_send(conn, session_key, sym_key)
 
-                    ip, port, _ = self.clients[user]
+                    # connect to peer's current port + 1
+                    ip, port = self.clients[user]
                     keySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     keySock.connect((ip, (port + 1) % MAX_PORT))
+
+                    # send session key to peer
                     msg = bytes(f"{client_user}:{session_key}", "utf-8")
                     mac_send(keySock, msg, sym_key)
+
+                    # get listen port from peer
+                    port = recv_dec(keySock, sym_key)
+                    
+                    if not port:
+                        continue
+
+                    print(f'Port: {port}')
+
+                    # send port and session_key to client
+                    mac_send(conn, port, sym_key)
+                    mac_send(conn, session_key, sym_key)
 
     def get_clients(self):
         return [f"{name}:{val[0]}:{val[1]}" for name, val in self.clients.items()]

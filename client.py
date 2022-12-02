@@ -8,7 +8,7 @@ from nacl.hash import sha256
 from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
-from config import HOST, MAX_PORT
+from config import HOST, MAX_PORT, MIN_PORT
 from utility import port, mac_send, recv_dec, sign_send
 
 class Client:
@@ -63,19 +63,23 @@ class Client:
             print('No user {user}')
             return
 
-        ip, port, _ = self.clients[user]
-        key = self.get_key(user)
+        ip = self.clients[user][0]
+        key, port = self.get_key(user)
 
         print(f'Key: {key}')
 
         self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        msg = input(f"{user}> ")
+
+        print(f'IP: {ip}, Port: {port}')
+
         try:
             self.peer.connect((ip, int(port)))
         except ConnectionRefusedError:
             print(f'{user} is busy')
             return
 
-        msg = input("> ")
         mac_send(self.peer, bytes(msg, "utf-8"), key)
 
 
@@ -113,13 +117,29 @@ class Client:
             if not msg:
                 continue
 
-            print(f'Msg: {msg}')
-
             user, key = msg.decode().split(':')
 
             if user in self.clients:
                 self.clients[user][2] = key
                 print(f'Key: {key}')
+
+            self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+            for port in range(MIN_PORT, MAX_PORT + 1):
+                try:
+                    self.peer.bind((HOST, port))
+                    print(f'Port: {port}')
+                    break
+                except OSError:
+                    continue
+
+            self.peer.listen()
+
+            msg = bytes(str(port), "utf-8")
+            mac_send(conn, msg, self.sym_key)
+            peer_conn, addr = self.peer.accept()
+            msg = recv_dec(peer_conn, self.sym_key)
+            print(f'Msg: {msg}')
 
     def get_clients(self):
         mac_send(self.server, b'g', self.sym_key)
@@ -144,15 +164,19 @@ class Client:
 
     def get_key(self, user):
         mac_send(self.server, bytes(user, "utf-8"), self.sym_key)
+        port = recv_dec(self.server, self.sym_key)
         key = recv_dec(self.server, self.sym_key)
 
-        if not key:
+        if not key or not port:
             print("Not logged in")
             return
 
         self.clients[user][2] = key
+        port = port.decode()
 
-        return key
+        print(f'Port: {port}')
+
+        return key, port
 
     def die(self):
         self.server.shutdown(1)
