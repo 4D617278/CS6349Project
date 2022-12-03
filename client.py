@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 import argparse
 import socket
-import threading
-from nacl.encoding import HexEncoder 
+import sys
+from threading import Thread
+from time import sleep
+
+from nacl.encoding import HexEncoder
 from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 
 from config import HOST, MAX_PORT, MIN_PORT
-from utility import port, mac_send, recv_dec, sign_send
+from utility import mac_send, port, recv_dec, sign_send
+
 
 class Client:
     def __init__(self, user):
@@ -34,15 +38,21 @@ class Client:
         self.peer_name = ""
         self.peer_key = None
         self.server = None
+        self.running_shell = True
 
     def start(self, host, port):
         args = (host, port)
-        threading.Thread(target=self.shell).start()
-        threading.Thread(target=self.login, args=args).start()
+        Thread(target=self.shell).start()
+        Thread(target=self.login, args=args).start()
 
     def shell(self):
-        while True:
+        sleep(0.25)
+        print("Commands: c, g, p, q")
+        while self.running_shell:
             cmd = input("> ")
+            if not self.running_shell:
+                sys.stdout.flush()
+                break
 
             match cmd:
                 case "c":
@@ -52,11 +62,13 @@ class Client:
                 case "p":
                     self.peer_connect()
                 case "q":
-                    break
+                    self.running_shell = False
                 case _:
+                    print("unknown command")
                     print("Commands: c, g, p, q")
 
-        self.die()
+        # self.die()
+        return
 
     def peer_connect(self):
         user = input("Username: ")
@@ -85,15 +97,18 @@ class Client:
             print(f"{user} is busy")
             return
 
+        print(f"You are connected to user {user} on port {port}")
+        self.chat(self.peer, self.peer_name, self.sym_key)
+
     def chat(self, peer, user, key):
         try:
             peer.getpeername()
         except OSError:
-            print('No peer is set')
+            print("No peer is set")
             return
 
         args = (peer, user, key)
-        threading.Thread(target=self.recv_msgs, args=args).start()
+        Thread(target=self.recv_msgs, args=args).start()
         self.send_msgs(peer, user, key)
 
     def recv_msgs(self, sock, user, key):
@@ -106,7 +121,7 @@ class Client:
             if not msg:
                 break
 
-            print(f'{user}: {msg.decode()}')
+            print(f"{user}: {msg.decode()}")
 
     def send_msgs(self, sock, user, key):
         while True:
@@ -126,7 +141,7 @@ class Client:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.connect((host, port))
         port = (self.server.getsockname()[1] + 1) % MAX_PORT
-        threading.Thread(target=self.get_keys, args=(port,)).start()
+        Thread(target=self.get_keys, args=(port,)).start()
 
         self.server.send(bytes(self.user, "utf-8"))
 
@@ -156,17 +171,18 @@ class Client:
             if not msg:
                 continue
 
-            print(f'Msg: {msg}')
+            print(f"Msg: {msg}")
+            self.running_shell = False
 
-            user, key = msg.decode().split(':', 1)
+            user, key = msg.decode().split(":", 1)
 
             if user in self.clients:
                 self.clients[user][2] = key
 
-            ans = input(f'Chat with {user}? ')
+            ans = input(f"Chat with {user}? ")
 
-            if ans != 'y':
-                mac_send(conn, b'0', self.sym_key)
+            if ans != "y":
+                mac_send(conn, b"0", self.sym_key)
                 continue
 
             self.peer.close()
@@ -182,26 +198,32 @@ class Client:
                 except OSError:
                     continue
 
+            print(f"Listening on port {port}")
+
             self.peer.listen()
             msg = bytes(str(port), "utf-8")
             mac_send(conn, msg, self.sym_key)
-            self.peer, _ = self.peer.accept()
+            print(f"Waiting for connection from {user} now")
+            self.peer, addr = self.peer.accept()
+            print(f"peer {user} connected")
+            print(addr)
+            self.chat(self.peer, self.peer_name, self.sym_key)
 
     def getpeername(self):
         return self.peer_name
 
     def get_clients(self):
-        mac_send(self.server, b'g', self.sym_key)
+        mac_send(self.server, b"g", self.sym_key)
         client_list = recv_dec(self.server, self.sym_key)
 
         if not client_list:
             print("Not logged in")
             return
 
-        clients = client_list.decode().split('\n')
+        clients = client_list.decode().split("\n")
 
         for client in clients:
-            name, ip, port = client.split(':')
+            name, ip, port = client.split(":")
 
             if name in self.clients:
                 self.clients[name][0] = ip
@@ -228,6 +250,7 @@ class Client:
         self.server.shutdown(1)
         self.server.close()
 
+
 def main():
     parser = argparse.ArgumentParser("Client application")
     parser.add_argument("--host", default="localhost", help="Location of server")
@@ -242,6 +265,7 @@ def main():
 
     c = Client(args.user)
     c.start(args.host, args.port)
+
 
 if __name__ == "__main__":
     main()
