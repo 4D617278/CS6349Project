@@ -3,7 +3,6 @@ import argparse
 from nacl.hash import sha256
 from nacl.utils import random
 from nacl.encoding import RawEncoder
-from nacl.signing import SignedMessage
 
 from config import SIGNATURE_SIZE, HASH_OUTPUT_SIZE, MAX_DATA_SIZE, MAX_PORT, MIN_PORT
 
