@@ -21,18 +21,14 @@ def port(port):
 def sign_hash(message, signing_key, hash_function=raw_sha256):
     """Hash a message using hash_function and sign it using signing_key"""
     hashed_message = hash_function(message)
-    print(f"Hashed message: {hashed_message} of length {len(hashed_message)}")
     signed_hash = signing_key.sign(hashed_message)
     return signed_hash.message, signed_hash.signature
 
 
 def encrypt_and_sign(message, box, signing_key, hash_function=raw_sha256):
     """Encrypt a message using box and sign it using signing_key"""
-    print(f"Original message: {message} of length {len(message)}")
     encrypted_message = box.encrypt(message)
-    print(f"Encrypted message: {encrypted_message} of length {len(encrypted_message)}")
     hashed_message, signature = sign_hash(encrypted_message, signing_key, hash_function)
-    print(f"Signature: {signature} of length {len(signature)}")
     return hashed_message + signature + encrypted_message
 
 
@@ -55,8 +51,6 @@ def get_hash_signature_message(message):
 
 
 def verify(message, hashed_message, signature, verify_key, hash_function=raw_sha256):
-    print(f"Hashed message: {hashed_message}")
-    print(f"Current hash: {hash_function(message)}")
     assert hashed_message == hash_function(message)
     verify_key.verify(hashed_message, signature)
 
@@ -69,18 +63,15 @@ def verify_dec(msg, sym_key, hash_function=raw_sha256):
     msg = msg[HASH_OUTPUT_SIZE:]
 
     hash = keyed_hash_decryption(sym_key, nonce, mac)
-    assert hash == hash_function(msg)
+    assert hash == hash_function(msg), f"Hash of {msg} does not match the original hash"
 
     return keyed_hash_decryption(sym_key, nonce, msg)
 
 
 def decrypt_and_verify(message, box, verify_key, hash_function=raw_sha256):
-    """Decrypt the message using box and verify the hash using verify_key"""
     hashed_message, signature, encrypted_message = get_hash_signature_message(message)
-    print(f"Encrypted message: {encrypted_message} of length {len(encrypted_message)}")
     verify(encrypted_message, hashed_message, signature, verify_key)
     decrypted_message = box.decrypt(encrypted_message)
-    print(f"Decrypted message: {decrypted_message} of length {len(decrypted_message)}")
     return decrypted_message
 
 

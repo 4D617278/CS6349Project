@@ -139,7 +139,6 @@ def main():
 
     s = Server(HOST, args.port)
     s.start()
-    s.die()
 
 
 if __name__ == "__main__":
