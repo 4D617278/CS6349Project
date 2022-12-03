@@ -3,6 +3,7 @@ import argparse
 import socket
 import threading
 from collections import defaultdict
+from time import sleep
 
 from nacl.encoding import HexEncoder
 from nacl.public import Box, PrivateKey, PublicKey
@@ -117,6 +118,7 @@ class Server:
 
                     # send port and session_key to client
                     mac_send(conn, msg, sym_key)
+                    sleep(.5)
                     mac_send(conn, session_key, sym_key)
 
     def get_clients(self):
