@@ -4,6 +4,7 @@ import socket
 import sys
 from threading import Thread
 from time import sleep
+import threading
 
 from nacl.encoding import HexEncoder
 from nacl.public import Box, PrivateKey, PublicKey
@@ -12,6 +13,10 @@ from nacl.signing import SigningKey, VerifyKey
 from config import HOST, MAX_PORT, MIN_PORT
 from utility import mac_send, port, recv_dec, sign_send
 
+
+def clear_current_line():
+    # Might be specific to UNIX?
+    sys.stdout.write('\x1b[2K')
 
 class Client:
     def __init__(self, user):
@@ -39,11 +44,17 @@ class Client:
         self.peer_key = None
         self.server = None
         self.running_shell = True
+        self.program_running = True
+        self.sym_key = b""
+        self.keySock = None
 
     def start(self, host, port):
         args = (host, port)
         Thread(target=self.shell).start()
         Thread(target=self.login, args=args).start()
+        if not self.program_running:
+            sleep(1)
+            print(threading.enumerate())
 
     def shell(self):
         sleep(0.25)
@@ -63,11 +74,11 @@ class Client:
                     self.peer_connect()
                 case "q":
                     self.running_shell = False
+                    self.program_running = False
                 case _:
-                    print("unknown command")
+                    print("Unknown command")
                     print("Commands: c, g, p, q")
 
-        # self.die()
         return
 
     def peer_connect(self):
@@ -97,7 +108,7 @@ class Client:
             print(f"{user} is busy")
             return
 
-        print(f"You are connected to user {user} on port {port}")
+        print(f"You are connected to user {user}")
         self.chat(self.peer, self.peer_name, self.sym_key)
 
     def chat(self, peer, user, key):
@@ -121,11 +132,14 @@ class Client:
             if not msg:
                 break
 
-            print(f"{user}: {msg.decode()}")
+            clear_current_line()
+            print(f"{user}: {msg.decode()}\n$ ", end="")
+        return
+
 
     def send_msgs(self, sock, user, key):
         while True:
-            msg = input(f"{self.user}: ")
+            msg = input("$ ")
 
             if not msg:
                 break
@@ -136,6 +150,7 @@ class Client:
                 break
 
         sock.close()
+        return
 
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -160,18 +175,23 @@ class Client:
     def get_keys(self, port):
         self.keySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.keySock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.keySock.settimeout(1)
         self.keySock.bind((HOST, port))
         self.keySock.listen()
 
-        while True:
-            conn, addr = self.keySock.accept()
+        while self.running_shell:
+            try:
+                conn, _ = self.keySock.accept()
+            except socket.timeout:
+                continue
 
             msg = recv_dec(conn, self.sym_key)
 
             if not msg:
                 continue
 
-            print(f"Msg: {msg}")
+            # print(f"Msg: {msg}")
+            print("Incoming message. Press enter to receive.")
             self.running_shell = False
 
             user, key = msg.decode().split(":", 1)
@@ -198,19 +218,16 @@ class Client:
                 except OSError:
                     continue
 
-            print(f"Listening on port {port}")
-
             self.peer.listen()
             msg = bytes(str(port), "utf-8")
             mac_send(conn, msg, self.sym_key)
-            print(f"Waiting for connection from {user} now")
             self.peer, addr = self.peer.accept()
-            print(f"peer {user} connected")
-            print(addr)
+            print(f"You are connected to user {user}")
             self.chat(self.peer, self.peer_name, self.sym_key)
+            self.running_shell = True
+            Thread(target=self.shell).start()
 
-    def getpeername(self):
-        return self.peer_name
+        return
 
     def get_clients(self):
         mac_send(self.server, b"g", self.sym_key)
@@ -231,7 +248,9 @@ class Client:
             else:
                 self.clients[name] = [ip, port, None]
 
-        print(self.clients)
+        printable_clients = [k for k in self.clients if k != self.user]
+
+        print(f"List of available clients: {', '.join(printable_clients)}")
 
     def get_key(self, user):
         mac_send(self.server, bytes(user, "utf-8"), self.sym_key)

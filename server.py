@@ -10,8 +10,8 @@ from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
-from config import HOST, MAX_USERNAME_LEN, SESSION_KEY_SIZE, MAX_PORT
-from utility import mac_send, recv_dec, recv_verify, port
+from config import HOST, MAX_PORT, MAX_USERNAME_LEN, SESSION_KEY_SIZE
+from utility import mac_send, port, recv_dec, recv_verify
 
 
 class Server:
