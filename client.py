@@ -56,10 +56,6 @@ class Client:
 
         Thread(target=self.shell).start()
 
-        if not self.program_running:
-            sleep(1)
-            print(threading.enumerate())
-
     def shell(self):
         print("Commands: c, g, p, q")
 
@@ -163,7 +159,12 @@ class Client:
 
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.connect((host, port))
+        try:
+            self.server.connect((host, port))
+        except ConnectionRefusedError:
+            print('Failed to connect to server')
+            return
+            
         port = (self.server.getsockname()[1] + 1) % MAX_PORT
         Thread(target=self.get_keys, args=(port,)).start()
 
@@ -287,9 +288,11 @@ class Client:
         return key, port
 
     def die(self):
-        self.server.shutdown(1)
-        self.server.close()
-
+        try:
+            self.server.shutdown(1)
+            self.server.close()
+        except:
+            pass
 
 def main():
     parser = argparse.ArgumentParser("Client application")
