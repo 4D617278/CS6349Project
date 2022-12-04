@@ -4,7 +4,7 @@ Requires Python 3.10
 `pip install -r requirements.txt`
 
 ### Create keys
-`python generate_keys.py --create-server --users user1 user2`
+`python generate_keys.py --create-server user1 user2`
 
 ### Run server application
 `python server.py`
