@@ -50,16 +50,17 @@ class Client:
 
     def start(self, host, port):
         args = (host, port)
+        t = Thread(target=self.login, args=args)
+        t.start()
+        t.join()
+
         Thread(target=self.shell).start()
-        Thread(target=self.login, args=args).start()
+
         if not self.program_running:
             sleep(1)
             print(threading.enumerate())
 
     def shell(self):
-        # wait for get_clients
-        sleep(0.25)
-
         print("Commands: c, g, p, q")
 
         self.running_shell = True
@@ -80,6 +81,7 @@ class Client:
                 case "q":
                     self.running_shell = False
                     self.program_running = False
+                    self.die()
                 case _:
                     print("Unknown command")
                     print("Commands: c, g, p, q")
@@ -243,6 +245,9 @@ class Client:
             return
 
         clients = client_list.decode().split("\n")
+
+        # reset
+        self.clients = {}
 
         for client in clients:
             name, ip, port = client.split(":")

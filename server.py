@@ -85,6 +85,7 @@ class Server:
                     mac_send(conn, msg, sym_key)
 
                 case b'':
+                    print(f'User disconnected: {client_user}')
                     conn.close()
                     del self.clients[client_user]
                     break
@@ -94,6 +95,7 @@ class Server:
                     user = cmd.decode()
 
                     if user not in self.clients:
+                        mac_send(conn, b':', sym_key)
                         continue
 
                     session_key = random(SESSION_KEY_SIZE)
