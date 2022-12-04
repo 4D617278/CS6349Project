@@ -45,6 +45,7 @@ class Client:
         self.peer_key = None
         self.server = None
         self.running_shell = True
+        self.connecting = False
         self.program_running = True
         self.sym_key = b""
         self.keySock = None
@@ -69,8 +70,6 @@ class Client:
                 break
 
             match cmd:
-                #case "c":
-                #    self.chat(self.peer, self.peer_name, self.peer_key)
                 case "g":
                     self.get_clients()
                 #case "l":
@@ -94,6 +93,7 @@ class Client:
             print(f"No user {user}")
             return
 
+        self.connecting = True
         self.peer_name = user
 
         ip = self.clients[user][0]
@@ -105,7 +105,6 @@ class Client:
 
         self.peer.close()
         self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.peer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.peer_key = key
 
         try:
@@ -116,6 +115,7 @@ class Client:
 
         print(f"You are connected to user {user}")
         self.chat(self.peer, self.peer_name, self.sym_key)
+        self.connecting = False
 
     def chat(self, peer, user, key):
         try:
@@ -202,6 +202,10 @@ class Client:
             try:
                 conn, _ = self.keySock.accept()
             except socket.timeout:
+                continue
+
+            if self.connecting:
+                mac_send(conn, b'n', self.sym_key)
                 continue
 
             msg = recv_dec(conn, self.sym_key)
