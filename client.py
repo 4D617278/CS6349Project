@@ -76,6 +76,8 @@ class Client:
                     self.chat(self.peer, self.peer_name, self.peer_key)
                 case "g":
                     self.get_clients()
+                #case "l":
+                #    self.login(host, port)
                 case "p":
                     self.peer_connect()
                 case "q":
@@ -186,7 +188,7 @@ class Client:
         self.keySock.bind((HOST, port))
         self.keySock.listen()
 
-        while True:
+        while self.program_running:
             try:
                 conn, _ = self.keySock.accept()
             except socket.timeout:
@@ -237,7 +239,12 @@ class Client:
         return
 
     def get_clients(self):
-        mac_send(self.server, b"g", self.sym_key)
+        try:
+            mac_send(self.server, b"g", self.sym_key)
+        except BrokenPipeError:
+            print("Not logged in")
+            return
+            
         client_list = recv_dec(self.server, self.sym_key)
 
         if not client_list:
