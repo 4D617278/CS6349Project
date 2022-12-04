@@ -157,6 +157,7 @@ Commands:
             print(f"{user}: {msg.decode()}\n$ {current_input}", end="")
 
         sock.close()
+        clear_current_line()
         print(f"Disconnected from {user}")
         return
 
