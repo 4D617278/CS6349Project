@@ -143,6 +143,7 @@ class Client:
             print(f"{user}: {msg.decode()}\n$ {current_input}", end="")
 
         sock.close()
+        print(f"Disconnected from {user}")
         return
 
 
@@ -150,12 +151,12 @@ class Client:
         while True:
             msg = input("$ ")
 
-            if not msg:
-                break
-
             try:
                 mac_send(sock, bytes(msg, "utf-8"), key)
             except (BrokenPipeError, OSError):
+                break
+
+            if not msg:
                 break
 
         sock.close()
