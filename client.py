@@ -186,7 +186,7 @@ class Client:
         self.keySock.bind((HOST, port))
         self.keySock.listen()
 
-        while self.running_shell:
+        while True:
             try:
                 conn, _ = self.keySock.accept()
             except socket.timeout:
