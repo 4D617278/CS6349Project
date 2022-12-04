@@ -3,6 +3,7 @@ import argparse
 import socket
 import sys
 from threading import Thread
+import readline
 from time import sleep
 import threading
 
@@ -50,15 +51,17 @@ class Client:
 
     def start(self, host, port):
         args = (host, port)
+        t = Thread(target=self.login, args=args)
+        t.start()
+        t.join()
+
         Thread(target=self.shell).start()
-        Thread(target=self.login, args=args).start()
-        if not self.program_running:
-            sleep(1)
-            print(threading.enumerate())
 
     def shell(self):
-        sleep(0.25)
-        print("Commands: c, g, p, q")
+        self.running_shell = True
+
+        print("Commands: g, p, q")
+
         while self.running_shell:
             cmd = input("> ")
             if not self.running_shell:
@@ -66,18 +69,21 @@ class Client:
                 break
 
             match cmd:
-                case "c":
-                    self.chat(self.peer, self.peer_name, self.peer_key)
+                #case "c":
+                #    self.chat(self.peer, self.peer_name, self.peer_key)
                 case "g":
                     self.get_clients()
+                #case "l":
+                #    self.login(host, port)
                 case "p":
                     self.peer_connect()
                 case "q":
                     self.running_shell = False
                     self.program_running = False
+                    self.die()
                 case _:
                     print("Unknown command")
-                    print("Commands: c, g, p, q")
+                    print("Commands: g, p, q")
 
         return
 
@@ -132,8 +138,11 @@ class Client:
             if not msg:
                 break
 
+            current_input = readline.get_line_buffer()
             clear_current_line()
-            print(f"{user}: {msg.decode()}\n$ ", end="")
+            print(f"{user}: {msg.decode()}\n$ {current_input}", end="")
+
+        sock.close()
         return
 
 
@@ -146,7 +155,7 @@ class Client:
 
             try:
                 mac_send(sock, bytes(msg, "utf-8"), key)
-            except BrokenPipeError:
+            except (BrokenPipeError, OSError):
                 break
 
         sock.close()
@@ -154,7 +163,12 @@ class Client:
 
     def login(self, host, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.connect((host, port))
+        try:
+            self.server.connect((host, port))
+        except ConnectionRefusedError:
+            print('Failed to connect to server')
+            return
+            
         port = (self.server.getsockname()[1] + 1) % MAX_PORT
         Thread(target=self.get_keys, args=(port,)).start()
 
@@ -163,6 +177,10 @@ class Client:
         # challenge
         box = Box(self.private_key, self.server_public_key)
         decrypted_nonce = recv_dec(self.server, self.verify_key, box)
+
+        if not decrypted_nonce:
+            print('Error: Username must be alphanumeric')
+            return
 
         # response
         sign_send(self.server, decrypted_nonce, self.signing_key)
@@ -179,7 +197,7 @@ class Client:
         self.keySock.bind((HOST, port))
         self.keySock.listen()
 
-        while self.running_shell:
+        while self.program_running:
             try:
                 conn, _ = self.keySock.accept()
             except socket.timeout:
@@ -202,7 +220,8 @@ class Client:
             ans = input(f"Chat with {user}? ")
 
             if ans != "y":
-                mac_send(conn, b"0", self.sym_key)
+                mac_send(conn, b'n', self.sym_key)
+                Thread(target=self.shell).start()
                 continue
 
             self.peer.close()
@@ -224,13 +243,17 @@ class Client:
             self.peer, addr = self.peer.accept()
             print(f"You are connected to user {user}")
             self.chat(self.peer, self.peer_name, self.sym_key)
-            self.running_shell = True
             Thread(target=self.shell).start()
 
         return
 
     def get_clients(self):
-        mac_send(self.server, b"g", self.sym_key)
+        try:
+            mac_send(self.server, b"g", self.sym_key)
+        except BrokenPipeError:
+            print("Not logged in")
+            return
+            
         client_list = recv_dec(self.server, self.sym_key)
 
         if not client_list:
@@ -238,6 +261,9 @@ class Client:
             return
 
         clients = client_list.decode().split("\n")
+
+        # reset
+        self.clients = {}
 
         for client in clients:
             name, ip, port = client.split(":")
@@ -254,21 +280,27 @@ class Client:
 
     def get_key(self, user):
         mac_send(self.server, bytes(user, "utf-8"), self.sym_key)
-        port = recv_dec(self.server, self.sym_key)
-        key = recv_dec(self.server, self.sym_key)
+        msg = recv_dec(self.server, self.sym_key)
+
+        if not msg:
+            return None, None
+
+        msg = msg.decode()
+
+        port, key = msg.split(':', 1)
 
         if not key or not port:
             return key, port
 
         self.clients[user][2] = key
-        port = port.decode()
-
         return key, port
 
     def die(self):
-        self.server.shutdown(1)
-        self.server.close()
-
+        try:
+            self.server.shutdown(1)
+            self.server.close()
+        except:
+            pass
 
 def main():
     parser = argparse.ArgumentParser("Client application")

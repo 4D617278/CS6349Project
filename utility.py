@@ -79,7 +79,7 @@ def mac_send(sock, msg, key, box=None):
         enc = encrypt_and_sign(msg, box, key)
     else:
         enc = mac(msg, key)
-    sock.send(enc)
+    sock.sendall(enc)
 
 
 def recv_dec(sock, key, box=None):
@@ -103,7 +103,7 @@ def recv_verify(sock, verify_key):
 
 def sign_send(sock, msg, sign_key):
     hash, signature = sign_hash(msg, sign_key)
-    sock.send(hash + signature + msg)
+    sock.sendall(hash + signature + msg)
 
 
 def xor(bytes1, bytes2):

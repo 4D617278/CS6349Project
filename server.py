@@ -10,7 +10,7 @@ from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
-from config import HOST, MAX_PORT, MAX_USERNAME_LEN, SESSION_KEY_SIZE
+from config import HOST, MAX_PORT, MIN_PORT, MAX_USERNAME_LEN, SESSION_KEY_SIZE
 from utility import mac_send, port, recv_dec, recv_verify
 
 
@@ -41,6 +41,11 @@ class Server:
     def connect_client(self, conn, addr):
         client_user_bytes = conn.recv(MAX_USERNAME_LEN)
         client_user = client_user_bytes.decode()
+
+        if not client_user.isalnum():
+            conn.close()
+            return
+
         print(f"Received connection request from client {client_user}")
 
         # key used to encrypt messages for the client
@@ -86,7 +91,11 @@ class Server:
 
                 case b'':
                     conn.close()
-                    del self.clients[client_user]
+
+                    if client_user in self.clients:
+                        print(f'User disconnected: {client_user}')
+                        del self.clients[client_user]
+
                     break
 
                 case _:
@@ -94,6 +103,7 @@ class Server:
                     user = cmd.decode()
 
                     if user not in self.clients:
+                        mac_send(conn, b':', sym_key)
                         continue
 
                     session_key = random(SESSION_KEY_SIZE)
@@ -109,17 +119,21 @@ class Server:
 
                     # get listen port from peer
                     msg = recv_dec(keySock, peer_key)
-                    
-                    if msg == b'0':
-                        keySock.close() 
-                        continue
+                    keySock.close() 
 
-                    print(f'Port: {msg.decode()}')
+                    if not msg:
+                        port = ""
+                    try:
+                        msg = msg.decode()
+                        port = int(msg)
+                        if port < MIN_PORT or port > MAX_PORT:
+                            port = ""
+                    except ValueError:
+                        port = ""
 
                     # send port and session_key to client
+                    msg = bytes(f"{port}:{session_key}", "utf-8")
                     mac_send(conn, msg, sym_key)
-                    sleep(.5)
-                    mac_send(conn, session_key, sym_key)
 
     def get_clients(self):
         return [f"{name}:{val[0]}:{val[1]}" for name, val in self.clients.items()]
