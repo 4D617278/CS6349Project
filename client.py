@@ -57,8 +57,13 @@ class Client:
             print(threading.enumerate())
 
     def shell(self):
+        # wait for get_clients
         sleep(0.25)
+
         print("Commands: c, g, p, q")
+
+        self.running_shell = True
+
         while self.running_shell:
             cmd = input("> ")
             if not self.running_shell:
@@ -202,7 +207,8 @@ class Client:
             ans = input(f"Chat with {user}? ")
 
             if ans != "y":
-                mac_send(conn, b"0", self.sym_key)
+                mac_send(conn, b'n', self.sym_key)
+                Thread(target=self.shell).start()
                 continue
 
             self.peer.close()
@@ -224,7 +230,6 @@ class Client:
             self.peer, addr = self.peer.accept()
             print(f"You are connected to user {user}")
             self.chat(self.peer, self.peer_name, self.sym_key)
-            self.running_shell = True
             Thread(target=self.shell).start()
 
         return
@@ -254,15 +259,19 @@ class Client:
 
     def get_key(self, user):
         mac_send(self.server, bytes(user, "utf-8"), self.sym_key)
-        port = recv_dec(self.server, self.sym_key)
-        key = recv_dec(self.server, self.sym_key)
+        msg = recv_dec(self.server, self.sym_key)
+
+        if not msg:
+            return None, None
+
+        msg = msg.decode()
+
+        port, key = msg.split(':', 1)
 
         if not key or not port:
             return key, port
 
         self.clients[user][2] = key
-        port = port.decode()
-
         return key, port
 
     def die(self):

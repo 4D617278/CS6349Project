@@ -10,7 +10,7 @@ from nacl.public import Box, PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 from nacl.utils import random
 
-from config import HOST, MAX_PORT, MAX_USERNAME_LEN, SESSION_KEY_SIZE
+from config import HOST, MAX_PORT, MIN_PORT, MAX_USERNAME_LEN, SESSION_KEY_SIZE
 from utility import mac_send, port, recv_dec, recv_verify
 
 
@@ -109,17 +109,21 @@ class Server:
 
                     # get listen port from peer
                     msg = recv_dec(keySock, peer_key)
-                    
-                    if msg == b'0':
-                        keySock.close() 
-                        continue
+                    keySock.close() 
 
-                    print(f'Port: {msg.decode()}')
+                    if not msg:
+                        port = ""
+                    try:
+                        msg = msg.decode()
+                        port = int(msg)
+                        if port < MIN_PORT or port > MAX_PORT:
+                            port = ""
+                    except ValueError:
+                        port = ""
 
                     # send port and session_key to client
+                    msg = bytes(f"{port}:{session_key}", "utf-8")
                     mac_send(conn, msg, sym_key)
-                    sleep(.5)
-                    mac_send(conn, session_key, sym_key)
 
     def get_clients(self):
         return [f"{name}:{val[0]}:{val[1]}" for name, val in self.clients.items()]
