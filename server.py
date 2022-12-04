@@ -41,6 +41,11 @@ class Server:
     def connect_client(self, conn, addr):
         client_user_bytes = conn.recv(MAX_USERNAME_LEN)
         client_user = client_user_bytes.decode()
+
+        if not client_user.isalnum():
+            conn.close()
+            return
+
         print(f"Received connection request from client {client_user}")
 
         # key used to encrypt messages for the client

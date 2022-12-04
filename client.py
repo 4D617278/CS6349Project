@@ -178,6 +178,10 @@ class Client:
         box = Box(self.private_key, self.server_public_key)
         decrypted_nonce = recv_dec(self.server, self.verify_key, box)
 
+        if not decrypted_nonce:
+            print('Error: Username must be alphanumeric')
+            return
+
         # response
         sign_send(self.server, decrypted_nonce, self.signing_key)
 
