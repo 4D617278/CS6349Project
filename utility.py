@@ -32,6 +32,7 @@ def encrypt_and_sign(message, box, signing_key, hash_function=raw_sha256):
 
 
 def mac(msg, sym_key, hash_function=raw_sha256):
+    """Calculate ciphertext and hash using HMAC"""
     nonce = random(HASH_OUTPUT_SIZE)
     enc = keyed_hash_encryption(sym_key, nonce, msg)
     hash = hash_function(enc)
@@ -40,7 +41,7 @@ def mac(msg, sym_key, hash_function=raw_sha256):
 
 
 def get_hash_signature_message(message):
-    """Split the message into the signed hash and the encrypted message"""
+    """Split the message into the hash, signature, and encrypted message"""
     hashed_message, signature, encrypted_message = (
         message[:HASH_OUTPUT_SIZE],
         message[HASH_OUTPUT_SIZE:SIGNATURE_SIZE],
@@ -50,11 +51,13 @@ def get_hash_signature_message(message):
 
 
 def verify(message, hashed_message, signature, verify_key, hash_function=raw_sha256):
+    """Verifies that the signature matches the hash and hash of message"""
     assert hashed_message == hash_function(message)
     verify_key.verify(hashed_message, signature)
 
 
 def verify_dec(msg, sym_key, hash_function=raw_sha256):
+    """Verify and decrypt msg using sym_key"""
     nonce = msg[:HASH_OUTPUT_SIZE]
     msg = msg[HASH_OUTPUT_SIZE:]
 
@@ -68,6 +71,7 @@ def verify_dec(msg, sym_key, hash_function=raw_sha256):
 
 
 def decrypt_and_verify(message, box, verify_key, hash_function=raw_sha256):
+    """Decrypt and verify message using asymmetric encryption"""
     hashed_message, signature, encrypted_message = get_hash_signature_message(message)
     verify(encrypted_message, hashed_message, signature, verify_key)
     decrypted_message = box.decrypt(encrypted_message)
@@ -75,26 +79,33 @@ def decrypt_and_verify(message, box, verify_key, hash_function=raw_sha256):
 
 
 def mac_send(sock, msg, key, box=None):
+    """Encrypt and send message"""
     if box:
+        # Asymmetric encryption using box
         enc = encrypt_and_sign(msg, box, key)
     else:
+        # Symmetric encryption using HMAC as PRF
         enc = mac(msg, key)
     sock.sendall(enc)
 
 
 def recv_dec(sock, key, box=None):
+    """Receive and message and decrypt it"""
     msg = sock.recv(MAX_DATA_SIZE)
 
     if not msg:
         return b''
 
     if box:
+        # Asymmetric encryption using box
         return decrypt_and_verify(msg, box, key)
     else:
+        # Symmetric encryption using HMAC as PRF
         return verify_dec(msg, key)
 
 
 def recv_verify(sock, verify_key):
+    """Receive a message and verify without decrypting"""
     msg = sock.recv(MAX_DATA_SIZE)
     hash, signature, msg = get_hash_signature_message(msg)
     verify(msg, hash, signature, verify_key)
@@ -102,6 +113,7 @@ def recv_verify(sock, verify_key):
 
 
 def sign_send(sock, msg, sign_key):
+    """Sign a message hash and send"""
     hash, signature = sign_hash(msg, sign_key)
     sock.sendall(hash + signature + msg)
 
