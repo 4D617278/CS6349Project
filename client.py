@@ -3,6 +3,7 @@ import argparse
 import socket
 import sys
 from threading import Thread
+import readline
 from time import sleep
 import threading
 
@@ -57,9 +58,9 @@ class Client:
         Thread(target=self.shell).start()
 
     def shell(self):
-        print("Commands: c, g, p, q")
-
         self.running_shell = True
+
+        print("Commands: g, p, q")
 
         while self.running_shell:
             cmd = input("> ")
@@ -68,8 +69,8 @@ class Client:
                 break
 
             match cmd:
-                case "c":
-                    self.chat(self.peer, self.peer_name, self.peer_key)
+                #case "c":
+                #    self.chat(self.peer, self.peer_name, self.peer_key)
                 case "g":
                     self.get_clients()
                 #case "l":
@@ -82,7 +83,7 @@ class Client:
                     self.die()
                 case _:
                     print("Unknown command")
-                    print("Commands: c, g, p, q")
+                    print("Commands: g, p, q")
 
         return
 
@@ -137,8 +138,11 @@ class Client:
             if not msg:
                 break
 
+            current_input = readline.get_line_buffer()
             clear_current_line()
-            print(f"{user}: {msg.decode()}\n$ ", end="")
+            print(f"{user}: {msg.decode()}\n$ {current_input}", end="")
+
+        sock.close()
         return
 
 
@@ -151,7 +155,7 @@ class Client:
 
             try:
                 mac_send(sock, bytes(msg, "utf-8"), key)
-            except BrokenPipeError:
+            except (BrokenPipeError, OSError):
                 break
 
         sock.close()

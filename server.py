@@ -85,9 +85,12 @@ class Server:
                     mac_send(conn, msg, sym_key)
 
                 case b'':
-                    print(f'User disconnected: {client_user}')
                     conn.close()
-                    del self.clients[client_user]
+
+                    if client_user in self.clients:
+                        print(f'User disconnected: {client_user}')
+                        del self.clients[client_user]
+
                     break
 
                 case _:
