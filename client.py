@@ -228,7 +228,7 @@ Commands:
             if not msg:
                 continue
 
-            print("Incoming message. Press enter to receive.")
+            print("\nIncoming message. Press enter to receive.")
             self.running_shell = False
 
             user, key = msg.decode().split(":", 1)
