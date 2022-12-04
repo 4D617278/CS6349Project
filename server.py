@@ -3,7 +3,6 @@ import argparse
 import socket
 import threading
 from collections import defaultdict
-from time import sleep
 
 from nacl.encoding import HexEncoder
 from nacl.public import Box, PrivateKey, PublicKey
