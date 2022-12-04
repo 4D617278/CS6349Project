@@ -158,7 +158,7 @@ Commands:
 
         sock.close()
         clear_current_line()
-        print(f"Disconnected from {user}")
+        print(f"\nDisconnected from {user}")
         return
 
     def send_msgs(self, sock, user, key):
