@@ -154,23 +154,24 @@ def keyed_hash_encryption(
 ):
     """Encryption using HMAC-256 keystream in cipher feedback mode"""
     assert len(iv) == HASH_OUTPUT_SIZE
+
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
-    output = key_byte_arr
     encrypted = bytearray()
     prev_enc = iv
 
-    # TODO: pad the message to a multiple of block_size
-    #message_byte_arr = pad(message_byte_arr)
-
     for i in range(0, len(message_byte_arr), HASH_OUTPUT_SIZE):
         block = message_byte_arr[i : i + HASH_OUTPUT_SIZE]
-        # O(i) = HMAC(IV, C(i-1))
-        output = hmac(iv, prev_enc)
+
+        # O(i) = HMAC(k, C(i-1))
+        output = hmac(key_byte_arr, prev_enc)
+
         # C(i) = P(i) ^ O(i)
         enc = xor(block, output)
+
         prev_enc = enc
         encrypted += enc
+
     return bytes(encrypted)
 
 
@@ -179,20 +180,24 @@ def keyed_hash_decryption(
 ):
     """Decryption using HMAC-256 keystream in cipher feedback mode"""
     assert len(iv) == HASH_OUTPUT_SIZE
+
     key_byte_arr = bytearray(key)
     message_byte_arr = bytearray(message)
-    output = key_byte_arr
     decrypted = bytearray()
     prev_dec = iv
 
     for i in range(0, len(message_byte_arr), HASH_OUTPUT_SIZE):
         block = message_byte_arr[i : i + HASH_OUTPUT_SIZE]
-        # O(i) = HMAC(IV, P(i-1))
-        output = hmac(iv, prev_dec)
+
+        # O(i) = HMAC(k, P(i-1))
+        output = hmac(key_byte_arr, prev_dec)
+
         # P(i) = C(i) ^ O(i)
         dec = xor(block, output)
+
         prev_dec = block
         decrypted += dec
+
     return bytes(decrypted)
 
 
