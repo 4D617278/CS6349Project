@@ -83,7 +83,7 @@ class Server:
             cmd = recv_dec(conn, sym_key)
 
             match cmd:
-                case b'g':
+                case b'?':
                     # client list
                     msg = bytes("\n".join(self.get_clients()), "utf-8")
                     mac_send(conn, msg, sym_key)
@@ -106,7 +106,7 @@ class Server:
                         continue
 
                     session_key = random(SESSION_KEY_SIZE)
-                    print(f'Key: {session_key}')
+                    #print(f'Key: {session_key}')
 
                     # connect to peer's current port + 1
                     ip, port, peer_key = self.clients[user]

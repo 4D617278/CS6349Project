@@ -269,7 +269,7 @@ Commands:
 
     def get_clients(self):
         try:
-            mac_send(self.server, b"g", self.sym_key)
+            mac_send(self.server, b"?", self.sym_key)
         except BrokenPipeError:
             print("Not logged in")
             return
