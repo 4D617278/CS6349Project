@@ -122,7 +122,7 @@ Commands:
             return
 
         print(f"You are connected to user {user}")
-        self.chat(self.peer, self.peer_name, self.sym_key)
+        self.chat(self.peer, self.peer_name, self.peer_key)
         self.connecting = False
 
     def chat(self, peer, user, key):
@@ -145,6 +145,7 @@ Commands:
         """
         while True:
             try:
+                #print(f"Key: {key}")
                 msg = recv_dec(sock, key)
             except OSError:
                 break
@@ -166,6 +167,7 @@ Commands:
             msg = input("$ ")
 
             try:
+                #print(f"Key: {key}")
                 mac_send(sock, bytes(msg, "utf-8"), key)
             except (BrokenPipeError, OSError):
                 break
@@ -261,7 +263,7 @@ Commands:
             mac_send(conn, msg, self.sym_key)
             self.peer, addr = self.peer.accept()
             print(f"You are connected to user {user}")
-            self.chat(self.peer, self.peer_name, self.sym_key)
+            self.chat(self.peer, self.peer_name, self.peer_key)
             Thread(target=self.shell).start()
 
         return
