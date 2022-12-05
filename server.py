@@ -106,6 +106,7 @@ class Server:
                         continue
 
                     session_key = random(SESSION_KEY_SIZE)
+                    print(f'Key: {session_key}')
 
                     # connect to peer's current port + 1
                     ip, port, peer_key = self.clients[user]
@@ -113,7 +114,8 @@ class Server:
                     keySock.connect((ip, (port + 1) % MAX_PORT))
 
                     # send session key to peer
-                    msg = bytes(f"{client_user}:{session_key}", "utf-8")
+
+                    msg = bytes(client_user, "utf-8") + b":" + session_key
                     mac_send(keySock, msg, peer_key)
 
                     # get listen port from peer
@@ -131,7 +133,7 @@ class Server:
                         port = ""
 
                     # send port and session_key to client
-                    msg = bytes(f"{port}:{session_key}", "utf-8")
+                    msg = bytes(str(port), "utf-8") + b":" + session_key
                     mac_send(conn, msg, sym_key)
 
     def get_clients(self):

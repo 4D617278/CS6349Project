@@ -145,7 +145,6 @@ Commands:
         """
         while True:
             try:
-                #print(f"Key: {key}")
                 msg = recv_dec(sock, key)
             except OSError:
                 break
@@ -167,7 +166,6 @@ Commands:
             msg = input("$ ")
 
             try:
-                #print(f"Key: {key}")
                 mac_send(sock, bytes(msg, "utf-8"), key)
             except (BrokenPipeError, OSError):
                 break
@@ -233,7 +231,8 @@ Commands:
             print("\nIncoming message. Press enter to receive.")
             self.running_shell = False
 
-            user, key = msg.decode().split(":", 1)
+            user_bytes, key = msg.split(b":", 1)
+            user = user_bytes.decode()
 
             if user in self.clients:
                 self.clients[user][2] = key
@@ -248,7 +247,7 @@ Commands:
             self.peer.close()
             self.peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.peer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.peer_key = bytes(key, "utf-8")
+            self.peer_key = key
             self.peer_name = user
 
             for port in range(MIN_PORT, MAX_PORT + 1):
@@ -306,9 +305,8 @@ Commands:
         if not msg:
             return None, None
 
-        msg = msg.decode()
-
-        port, key = msg.split(":", 1)
+        port_bytes, key = msg.split(b":", 1)
+        port = port_bytes.decode()
 
         if not key or not port:
             return key, port
